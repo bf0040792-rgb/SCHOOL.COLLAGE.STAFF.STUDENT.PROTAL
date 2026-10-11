@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>School Portal | Unified Access</title>
+    <meta name="description" content="Comprehensive school and college portal for administration, staff, admissions, and students.">
+    <meta property="og:title" content="School Portal | Unified Access">
+    <meta property="og:description" content="Comprehensive school and college portal for administration, staff, admissions, and students.">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link
         href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@400;500;600;700;800&display=swap"
@@ -464,9 +467,151 @@
         </div>
 
         <div class="flex-1 flex overflow-hidden relative">
-            <div id="main-sidebar" class="mock-sidebar transition-all duration-300" style="display:none; width: 260px; background: color-mix(in srgb, var(--m-bg) 95%, black 5%); border-right: 1px solid var(--m-line); display: flex; flex-direction: column;">
-                <div style="padding:15px; color:var(--m-muted); font-size:11px; text-align:center;">
-                    <label class="device-toggle" style="cursor:pointer;"><input type="checkbox" id="deviceModeToggle"> PC Mode</label>
+            <!-- Mobile Backdrop Overlay -->
+            <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="window.toggleSidebar('admin')"></div>
+
+            <!-- Dedicated SaaS Feature Sidebar Drawer -->
+            <div id="main-sidebar" class="mock-sidebar">
+                <!-- Sidebar Header -->
+                <div class="sidebar-header">
+                    <div class="sidebar-brand">
+                        <div class="sidebar-logo"><i class="fas fa-school"></i></div>
+                        <div class="sidebar-title-wrap">
+                            <span class="sidebar-title" id="side-school-name">School Portal</span>
+                            <span class="sidebar-subtitle"><i class="fas fa-shield-alt"></i> Chairman / Admin</span>
+                        </div>
+                    </div>
+                    <button type="button" class="sidebar-close-btn" onclick="window.toggleSidebar('admin')" title="Close menu">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Live Search Box -->
+                <div class="sidebar-search-box">
+                    <input type="text" id="sidebar-menu-search" class="sidebar-search-input" placeholder="Search features..." oninput="window.filterSidebarMenus(this.value, 'admin')">
+                </div>
+
+                <!-- Nav Menu Groups (All Top Features Included!) -->
+                <div class="sidebar-scroll custom-scrollbar">
+                    <!-- Group 1: Academics & Students -->
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title"><i class="fas fa-graduation-cap"></i> Academics & Students</div>
+                        <div class="sidebar-nav-item active" data-target="tab-dashboard" onclick="window.handleSidebarNavClick('tab-dashboard')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
+                            <span class="sidebar-nav-label">Dashboard</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-students" onclick="window.handleSidebarNavClick('tab-students')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-user-graduate"></i></span>
+                            <span class="sidebar-nav-label">Students & Certs</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-student-transfer" onclick="window.handleSidebarNavClick('tab-student-transfer')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-right-left"></i></span>
+                            <span class="sidebar-nav-label">Student Transfer</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-admit-cards-module" onclick="window.handleSidebarNavClick('tab-admit-cards-module')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-id-card-alt"></i></span>
+                            <span class="sidebar-nav-label">Admit Cards</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-daily-attendance" onclick="window.handleSidebarNavClick('tab-daily-attendance')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-clipboard-user"></i></span>
+                            <span class="sidebar-nav-label">Daily Attendance</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-export-records" onclick="window.handleSidebarNavClick('tab-export-records')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-address-book"></i></span>
+                            <span class="sidebar-nav-label">Student Records</span>
+                        </div>
+                    </div>
+
+                    <!-- Group 2: Faculty & Structure -->
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title"><i class="fas fa-sitemap"></i> Faculty & Structure</div>
+                        <div class="sidebar-nav-item" data-target="tab-staff" onclick="window.handleSidebarNavClick('tab-staff')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-user-tie"></i></span>
+                            <span class="sidebar-nav-label">Staff Manager</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-departments" id="side-menu-departments" style="display:none;" onclick="window.handleSidebarNavClick('tab-departments')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-building"></i></span>
+                            <span class="sidebar-nav-label">Departments</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-programs" id="side-menu-programs" style="display:none;" onclick="window.handleSidebarNavClick('tab-programs')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-graduation-cap"></i></span>
+                            <span class="sidebar-nav-label">Programs & Courses</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-sessions" id="side-menu-sessions" style="display:none;" onclick="window.handleSidebarNavClick('tab-sessions')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
+                            <span class="sidebar-nav-label">Academic Sessions</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-sections" id="side-menu-sections" style="display:none;" onclick="window.handleSidebarNavClick('tab-sections')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-layer-group"></i></span>
+                            <span class="sidebar-nav-label">Levels & Sections</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-academics" onclick="window.handleSidebarNavClick('tab-academics')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-book-open"></i></span>
+                            <span class="sidebar-nav-label">Academic Veto</span>
+                        </div>
+                    </div>
+
+                    <!-- Group 3: Finance & Assets -->
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title"><i class="fas fa-coins"></i> Finance & Operations</div>
+                        <div class="sidebar-nav-item" data-target="tab-finance" onclick="window.handleSidebarNavClick('tab-finance')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-rupee-sign"></i></span>
+                            <span class="sidebar-nav-label">Finance & Fees</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-fee-approvals" onclick="window.handleSidebarNavClick('tab-fee-approvals')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-check-circle"></i></span>
+                            <span class="sidebar-nav-label">Fee Approvals</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-transport" onclick="window.handleSidebarNavClick('tab-transport')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-bus"></i></span>
+                            <span class="sidebar-nav-label">Transport Manager</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-inventory" onclick="window.handleSidebarNavClick('tab-inventory')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-boxes"></i></span>
+                            <span class="sidebar-nav-label">Inventory & Assets</span>
+                        </div>
+                    </div>
+
+                    <!-- Group 4: Communications & Alerts -->
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title"><i class="fas fa-bullhorn"></i> Communications</div>
+                        <div class="sidebar-nav-item" data-target="tab-notices" onclick="window.handleSidebarNavClick('tab-notices')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-bullhorn"></i></span>
+                            <span class="sidebar-nav-label">Notices & Ticker</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-mailbox" onclick="window.handleSidebarNavClick('tab-mailbox')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-comments"></i></span>
+                            <span class="sidebar-nav-label">Communication Hub</span>
+                            <span class="sidebar-nav-badge" id="side-badge-mailbox" style="display:none;">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Group 5: Portal Settings & Security -->
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title"><i class="fas fa-cog"></i> System & Settings</div>
+                        <div class="sidebar-nav-item" data-target="tab-student-features" onclick="window.handleSidebarNavClick('tab-student-features')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-toggle-on"></i></span>
+                            <span class="sidebar-nav-label">Student Features</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-settings" onclick="window.handleSidebarNavClick('tab-settings')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-cogs"></i></span>
+                            <span class="sidebar-nav-label">School Settings</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="tab-password" onclick="window.handleSidebarNavClick('tab-password')">
+                            <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
+                            <span class="sidebar-nav-label">Change Password</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar Footer -->
+                <div class="sidebar-footer">
+                    <label class="device-toggle" style="cursor:pointer;">
+                        <input type="checkbox" id="deviceModeToggle"> <i class="fas fa-desktop" style="margin-left:4px;"></i> PC Mode
+                    </label>
+                    <div class="logout-btn" onclick="doLogout()">
+                        <i class="fas fa-power-off"></i> Secure Logout
+                    </div>
                 </div>
             </div>
 
@@ -2632,8 +2777,91 @@
         </div>
 
         <div class="flex-1 flex overflow-hidden relative">
-            <div id="staff-main-sidebar" class="mock-sidebar transition-all duration-300" style="display:none; width: 260px; background: color-mix(in srgb, var(--m-bg) 95%, black 5%); border-right: 1px solid var(--m-line); display: flex; flex-direction: column;">
-                <!-- Additional sidebar features if needed -->
+            <!-- Mobile Backdrop Overlay -->
+            <div id="staff-sidebar-backdrop" class="sidebar-backdrop" onclick="window.toggleSidebar('staff')"></div>
+
+            <!-- Dedicated Staff Feature Sidebar Drawer -->
+            <div id="staff-main-sidebar" class="mock-sidebar">
+                <!-- Sidebar Header -->
+                <div class="sidebar-header">
+                    <div class="sidebar-brand">
+                        <div class="sidebar-logo" style="background: linear-gradient(145deg, #d946ef, #9333ea);"><i class="fas fa-graduation-cap"></i></div>
+                        <div class="sidebar-title-wrap">
+                            <span class="sidebar-title" id="staff-side-school-name">School Name</span>
+                            <span class="sidebar-subtitle" style="color: #d946ef;"><i class="fas fa-chalkboard-teacher"></i> Staff Portal</span>
+                        </div>
+                    </div>
+                    <button type="button" class="sidebar-close-btn" onclick="window.toggleSidebar('staff')" title="Close menu">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Live Search Box -->
+                <div class="sidebar-search-box">
+                    <input type="text" id="staff-sidebar-menu-search" class="sidebar-search-input" placeholder="Search staff features..." oninput="window.filterSidebarMenus(this.value, 'staff')">
+                </div>
+
+                <!-- Nav Menu Groups (All Staff Options) -->
+                <div class="sidebar-scroll custom-scrollbar">
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title" style="color: #d946ef;"><i class="fas fa-chalkboard"></i> Classroom & Teaching</div>
+                        <div class="sidebar-nav-item active" data-target="staff-tab-home" onclick="window.handleStaffSidebarNavClick('staff-tab-home')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-home"></i></span>
+                            <span class="sidebar-nav-label">Dashboard</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-department" id="staff-side-department" style="display:none;" onclick="window.handleStaffSidebarNavClick('staff-tab-department')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-building"></i></span>
+                            <span class="sidebar-nav-label">My Department</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-attendance" onclick="window.handleStaffSidebarNavClick('staff-tab-attendance')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-clipboard-list"></i></span>
+                            <span class="sidebar-nav-label">Daily Attendance</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-marks" onclick="window.handleStaffSidebarNavClick('staff-tab-marks')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-pen-alt"></i></span>
+                            <span class="sidebar-nav-label">Enter Exam Marks</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-homework" onclick="window.handleStaffSidebarNavClick('staff-tab-homework')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-book-open"></i></span>
+                            <span class="sidebar-nav-label">Homework</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-timetable" onclick="window.handleStaffSidebarNavClick('staff-tab-timetable')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-calendar-alt"></i></span>
+                            <span class="sidebar-nav-label">Timetable</span>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title" style="color: #d946ef;"><i class="fas fa-users-cog"></i> Communications & Requests</div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-notices" onclick="window.handleStaffSidebarNavClick('staff-tab-notices')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-bullhorn"></i></span>
+                            <span class="sidebar-nav-label">Notice Board</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-leave" onclick="window.handleStaffSidebarNavClick('staff-tab-leave')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-calendar-minus"></i></span>
+                            <span class="sidebar-nav-label">Leave Request</span>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-group">
+                        <div class="sidebar-group-title" style="color: #d946ef;"><i class="fas fa-user-circle"></i> Profile & Faculty</div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-profile" onclick="window.handleStaffSidebarNavClick('staff-tab-profile')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-user-circle"></i></span>
+                            <span class="sidebar-nav-label">My Profile</span>
+                        </div>
+                        <div class="sidebar-nav-item" data-target="staff-tab-staff" onclick="window.handleStaffSidebarNavClick('staff-tab-staff')">
+                            <span class="sidebar-nav-icon" style="color: #d946ef;"><i class="fas fa-users"></i></span>
+                            <span class="sidebar-nav-label">Teachers Directory</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Staff Sidebar Footer -->
+                <div class="sidebar-footer">
+                    <div class="logout-btn" onclick="doLogout()">
+                        <i class="fas fa-power-off"></i> Secure Logout
+                    </div>
+                </div>
             </div>
 
             <div class="main-content flex-1 overflow-y-auto p-4 md:p-8" id="staff-scroll-area">
@@ -3650,40 +3878,75 @@
         </div>
         <div style="text-align:right; margin-top:20px;">
             <button class="action-btn btn-green" onclick="saveStudentSubjects()"><i class="fas fa-save"></i> Save Subjects</button>
-        </div></div></div><script>document.addEventListener("DOMContentLoaded", () => {
-    // Admin Sidebar
+        </div></div></div><script>
+document.addEventListener("DOMContentLoaded", () => {
+    // Admin Sidebar Toggle
     const toggleBtn = document.getElementById('sidebar-toggle');
-    const sidebar = document.getElementById('main-sidebar');
-
-    if (toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', function(e) {
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (sidebar.classList.contains('-translate-x-full')) {
-                sidebar.classList.remove('-translate-x-full');
-                sidebar.classList.add('translate-x-0');
-            } else {
-                sidebar.classList.add('-translate-x-full');
-                sidebar.classList.remove('translate-x-0');
-            }
+            if (window.toggleSidebar) window.toggleSidebar('admin');
         });
     }
 
-    // Staff Sidebar
+    // Staff Sidebar Toggle
     const staffToggleBtn = document.getElementById('staff-sidebar-toggle');
-    const staffSidebar = document.getElementById('staff-main-sidebar');
-
-    if (staffToggleBtn && staffSidebar) {
-        staffToggleBtn.addEventListener('click', function(e) {
+    if (staffToggleBtn) {
+        staffToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (staffSidebar.classList.contains('-translate-x-full')) {
-                staffSidebar.classList.remove('-translate-x-full');
-                staffSidebar.classList.add('translate-x-0');
-            } else {
-                staffSidebar.classList.add('-translate-x-full');
-                staffSidebar.classList.remove('translate-x-0');
-            }
+            if (window.toggleSidebar) window.toggleSidebar('staff');
         });
     }
+
+    // Sync School Names to Sidebars
+    const syncSchoolNames = () => {
+        const topSchoolName = document.getElementById('top-school-name');
+        const sideSchoolName = document.getElementById('side-school-name');
+        if (topSchoolName && sideSchoolName && topSchoolName.innerText) {
+            sideSchoolName.innerText = topSchoolName.innerText;
+        }
+        const staffSchoolName = document.getElementById('staff-school-name');
+        const staffSideSchoolName = document.getElementById('staff-side-school-name');
+        if (staffSchoolName && staffSideSchoolName && staffSchoolName.innerText) {
+            staffSideSchoolName.innerText = staffSchoolName.innerText;
+        }
+    };
+    setInterval(syncSchoolNames, 1500);
+
+    // Sidebar navigation handler for admin
+    window.handleSidebarNavClick = (targetId) => {
+        if (window.switchTab) window.switchTab(targetId);
+        document.querySelectorAll('#main-sidebar .sidebar-nav-item').forEach(i => {
+            i.classList.toggle('active', i.dataset.target === targetId);
+        });
+        if (window.innerWidth <= 1024) {
+            const sidebar = document.getElementById('main-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            if (sidebar) sidebar.classList.remove('sidebar-open');
+            if (backdrop) backdrop.classList.remove('active');
+        }
+    };
+
+    // Sidebar navigation handler for staff
+    window.handleStaffSidebarNavClick = (targetId) => {
+        const topItem = document.querySelector(`#staff-dashboard-wrapper .menu-item[data-target="${targetId}"]`);
+        if (topItem) {
+            topItem.click();
+        } else {
+            document.querySelectorAll('#staff-dashboard-wrapper .tab-content').forEach(t => t.classList.remove('active'));
+            const target = document.getElementById(targetId);
+            if (target) target.classList.add('active');
+        }
+        document.querySelectorAll('#staff-main-sidebar .sidebar-nav-item').forEach(i => {
+            i.classList.toggle('active', i.dataset.target === targetId);
+        });
+        if (window.innerWidth <= 1024) {
+            const sidebar = document.getElementById('staff-main-sidebar');
+            const backdrop = document.getElementById('staff-sidebar-backdrop');
+            if (sidebar) sidebar.classList.remove('sidebar-open');
+            if (backdrop) backdrop.classList.remove('active');
+        }
+    };
 });
 </script>
 <script src="modern-ui.js?v=20261007_fixed"></script>

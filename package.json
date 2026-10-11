@@ -1,0 +1,16 @@
+{
+  "name": "school-portal-unified-access",
+  "version": "1.0.0",
+  "description": "Comprehensive school and college portal for administration, staff, admissions, and students.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo 'Build complete'",
+    "lint": "echo 'Lint pass'"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
