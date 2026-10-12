@@ -130,6 +130,17 @@ function normalizeFeatureSettingsPayload(payload = {}) {
 async function readSchoolFeatureSettings(schoolId) {
     if (!schoolId) return hydrateFeatureSettings();
 
+    // 1. Primary: Query get_institution_feature_controls RPC (bypasses RLS)
+    try {
+        const { data: rpcData, error: rpcErr } = await supabaseClient.rpc("get_institution_feature_controls", { p_school_id: schoolId });
+        if (!rpcErr && rpcData && Object.keys(rpcData).length > 0) {
+            return normalizeFeatureSettingsPayload({ featureSettings: rpcData });
+        }
+    } catch (rpcEx) {
+        console.warn("RPC get_institution_feature_controls warning:", rpcEx);
+    }
+
+    // 2. Direct query on feature_controls
     const { data: featureRow, error: featureError } = await supabaseClient
         .from(FEATURE_SETTINGS_TABLE)
         .select("*")
@@ -138,7 +149,7 @@ async function readSchoolFeatureSettings(schoolId) {
     if (featureError) console.error("Feature control lookup failed:", featureError);
     if (featureRow) return normalizeFeatureSettingsPayload(featureRow);
 
-    // Fallback: legacy toggle fields stored directly on the school row.
+    // 3. Fallback: legacy toggle fields stored directly on the school row
     const { data: schoolRow, error: schoolError } = await supabaseClient
         .from("schools")
         .select("*")
@@ -257,7 +268,16 @@ function initializeChairmanNavigation() {
     document.querySelectorAll('#dashboard-wrapper .menu-item[data-target], #dashboard-wrapper .sidebar-nav-item[data-target]').forEach(item => {
         if (item.dataset.navReady === 'true') return;
         item.dataset.navReady = 'true';
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+            if (typeof isSchoolTabRestricted === 'function' && isSchoolTabRestricted(item.dataset.target)) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+                showCompanyRestrictedAlert();
+                applyFeatureLocks();
+                return;
+            }
             if (typeof window.handleSidebarNavClick === 'function' && item.classList.contains('sidebar-nav-item')) {
                 window.handleSidebarNavClick(item.dataset.target);
             } else {
@@ -1985,8 +2005,14 @@ function isFeatureEnabled(group, key) {
     return window.currentFeatureSettings?.[group]?.[key] !== false;
 }
 
-function showCompanyRestrictedAlert() {
-    alert("Access Restricted: This feature is disabled by the Super Admin. Please contact your Company Administrator to enable it.");
+function showCompanyRestrictedAlert(featureKey = '') {
+    const keyName = featureKey ? `[${featureKey.toUpperCase()}]` : '';
+    const msg = `⚠️ Access Restricted: This feature ${keyName} is currently disabled by CoreEdu Company Management for your institution. It remains visible in locked / read-only mode.`;
+    if (typeof window.showToast === 'function') {
+        window.showToast(msg, '#f43f5e');
+    } else {
+        alert(msg);
+    }
 }
 
 function getSchoolFeatureKeyForTab(targetId) {
@@ -2011,9 +2037,13 @@ function getSchoolFeatureKeyForTab(targetId) {
         'tab-student-features': 'studentPortalFeatures',
         'tab-settings': 'settings',
         'tab-departments': 'departments',
+        'side-menu-departments': 'departments',
         'tab-programs': 'programs',
+        'side-menu-programs': 'programs',
         'tab-sessions': 'sessions',
+        'side-menu-sessions': 'sessions',
         'tab-sections': 'sections',
+        'side-menu-sections': 'sections',
         'tab-export-records': 'studentRecord',
         'tab-password': 'changePassword',
         'staff-tab-attendance': 'dailyAttendance',
@@ -2028,8 +2058,16 @@ function getSchoolFeatureKeyForTab(targetId) {
 
 function isSchoolTabRestricted(targetId) {
     const key = getSchoolFeatureKeyForTab(targetId);
-    return !!key && window.currentFeatureSettings?.school && window.currentFeatureSettings.school[key] === false;
+    if (!key) return false;
+    const schoolSettings = window.currentFeatureSettings?.school;
+    if (schoolSettings && schoolSettings[key] === false) return true;
+    const modulesSettings = window.currentFeatureSettings?.modules;
+    if (modulesSettings && modulesSettings[key] === false) return true;
+    return false;
 }
+window.isSchoolTabRestricted = isSchoolTabRestricted;
+window.showCompanyRestrictedAlert = showCompanyRestrictedAlert;
+window.applyFeatureLocks = applyFeatureLocks;
 
 function applyFeatureLocks() {
     const moduleMap = {
@@ -2050,14 +2088,31 @@ function applyFeatureLocks() {
             if (el.classList.contains('tab-content')) el.style.opacity = enabled ? '1' : '0.55';
         });
     });
-    document.querySelectorAll('.menu-item[data-target]').forEach(item => {
-        const locked = isSchoolTabRestricted(item.dataset.target);
+
+    const selector = '#dashboard-wrapper .menu-item[data-target], #dashboard-wrapper .sidebar-nav-item[data-target], #staff-dashboard-wrapper .menu-item[data-target], #staff-dashboard-wrapper .sidebar-nav-item[data-target]';
+    document.querySelectorAll(selector).forEach(item => {
+        const targetId = item.dataset.target;
+        const locked = isSchoolTabRestricted(targetId);
+        
+        // Per User Specification: "SHOW TO REKA GA LAKEN WORKING NAHI KARI GII"
+        item.style.display = ''; // Keep visible at all times
         item.classList.toggle('company-feature-locked', locked);
         item.setAttribute('aria-disabled', locked ? 'true' : 'false');
-        if (locked && !item.querySelector('.company-lock-badge')) item.insertAdjacentHTML('beforeend', ' <span class="company-lock-badge"><i class="fas fa-lock"></i> Locked</span>');
-        if (!locked) item.querySelector('.company-lock-badge')?.remove();
-        item.style.display = locked ? 'none' : '';
+        
+        let lockBadge = item.querySelector('.company-lock-badge');
+        if (locked) {
+            item.style.opacity = '0.65';
+            item.style.cursor = 'not-allowed';
+            if (!lockBadge) {
+                item.insertAdjacentHTML('beforeend', ' <span class="company-lock-badge ml-auto text-[10px] font-mono font-bold text-rose-400 bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm"><i class="fas fa-lock text-[9px]"></i> Locked</span>');
+            }
+        } else {
+            item.style.opacity = '';
+            item.style.cursor = '';
+            lockBadge?.remove();
+        }
     });
+
     renderStudentFeatureGrid();
 }
 
@@ -6011,6 +6066,15 @@ async function loadStudentDashboard() {
     document.getElementById("dashboard-wrapper").style.display = "none";
     document.getElementById("staff-dashboard-wrapper").style.display = "none";
     document.getElementById("student-dashboard-wrapper").style.display = "block";
+
+    if (currentSchoolId) {
+        try {
+            await syncSchoolFeatureSettings(currentSchoolId);
+            listenToFeatureSettings();
+        } catch (e) {
+            console.warn("Could not sync live feature settings in loadStudentDashboard:", e);
+        }
+    }
 
     document.getElementById("student-dash-school-name").innerText = currentStudentSchoolDoc.schoolName || "Portal";
     document.getElementById("stu-display-name").innerText = currentStudentUser.name;

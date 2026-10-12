@@ -3915,6 +3915,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sidebar navigation handler for admin
     window.handleSidebarNavClick = (targetId) => {
+        if (typeof window.isSchoolTabRestricted === 'function' && window.isSchoolTabRestricted(targetId)) {
+            if (typeof window.showCompanyRestrictedAlert === 'function') window.showCompanyRestrictedAlert();
+            return;
+        }
         if (window.switchTab) window.switchTab(targetId);
         document.querySelectorAll('#main-sidebar .sidebar-nav-item').forEach(i => {
             i.classList.toggle('active', i.dataset.target === targetId);
@@ -3929,6 +3933,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sidebar navigation handler for staff
     window.handleStaffSidebarNavClick = (targetId) => {
+        if (typeof window.isSchoolTabRestricted === 'function' && window.isSchoolTabRestricted(targetId)) {
+            if (typeof window.showCompanyRestrictedAlert === 'function') window.showCompanyRestrictedAlert();
+            return;
+        }
         const topItem = document.querySelector(`#staff-dashboard-wrapper .menu-item[data-target="${targetId}"]`);
         if (topItem) {
             topItem.click();

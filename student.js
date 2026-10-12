@@ -116,6 +116,15 @@ function hydrateFeatureSettings(payload = {}) {
 async function readSchoolFeatureSettings(schoolId) {
     if (!schoolId) return hydrateFeatureSettings();
 
+    try {
+        const { data: rpcData, error: rpcErr } = await supabaseClient.rpc("get_institution_feature_controls", { p_school_id: schoolId });
+        if (!rpcErr && rpcData && Object.keys(rpcData).length > 0) {
+            return hydrateFeatureSettings({ featureSettings: rpcData });
+        }
+    } catch (rpcEx) {
+        console.warn("RPC get_institution_feature_controls warning in student portal:", rpcEx);
+    }
+
     const { data: featureRow, error: featureError } = await supabaseClient
         .from(FEATURE_SETTINGS_TABLE)
         .select("*")
@@ -194,7 +203,7 @@ window.openStudentView = (targetId) => {
 window.handleStudentFeatureClick = (featureId) => {
     const key = getStudentFeatureToggleKey(featureId);
     if (window.currentFeatureSettings?.student && window.currentFeatureSettings.student[key] === false) {
-        alert("Access Restricted: This feature is disabled by the school administration.");
+        alert("⚠️ Facility Locked: This feature has been disabled by the administration for your institution. You can view this section, but active access is restricted.");
         return;
     }
     if (featureId === 'fee') return window.showStudentPaymentSection();
@@ -275,6 +284,13 @@ async function loginStudent() {
 async function loadStudentDashboard() {
     $('student-login-wrapper') && ($('student-login-wrapper').style.display = 'none');
     $('student-dashboard-wrapper') && ($('student-dashboard-wrapper').style.display = 'block');
+    if (currentSchoolId) {
+        try {
+            window.currentFeatureSettings = await readSchoolFeatureSettings(currentSchoolId);
+        } catch (e) {
+            console.warn("Feature sync warning in student load:", e);
+        }
+    }
     $('student-dash-school-name') && ($('student-dash-school-name').innerText = currentStudentSchoolDoc?.schoolName || "Portal");
     $('stu-display-name') && ($('stu-display-name').innerText = currentStudentUser?.name || "Student");
     $('banner-name') && ($('banner-name').innerText = currentStudentUser?.name || "N/A");
