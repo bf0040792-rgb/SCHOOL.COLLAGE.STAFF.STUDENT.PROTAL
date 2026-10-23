@@ -1029,7 +1029,7 @@ window.executePromotion = async () => {
                 const { error } = await supabaseClient.from("students").update({
                     class: promotion.nextClass,
                     rollNo: "" // Reset roll number
-                }).eq("id", promotion.id);
+                }).eq("id", promotion.id).eq("schoolId", currentSchoolId);
                 if (error) throw error;
             }
             // Reset status after successful execution
@@ -1237,7 +1237,7 @@ window.submitStudentTransfer = async () => {
             transferStatus: "Pending HQ Approval",
             transferRecordId: transferId,
             pendingTransferTo: toSchoolId
-        }).eq("id", studentId);
+        }).eq("id", studentId).eq("schoolId", currentSchoolId);
         if (studentError) throw studentError;
 
         alert("Transfer request submitted. Status: Pending HQ Approval.\nCoreEdu HQ will review and approve this request.");
@@ -3971,7 +3971,7 @@ window.downloadGlobalStaffCSV = async (evt = null) => {
     try {
         if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Preparing CSV..."; }
         const [staffRes, schoolsRes] = await Promise.all([
-            supabaseClient.from("users").select("*").eq("role", "staff"),
+            supabaseClient.from("users").select("*").eq("role", "staff").eq("schoolId", currentSchoolId),
             supabaseClient.from("vw_public_schools").select("*").then(res => (res.error ? null : res))
         ]);
         if (staffRes.error) throw staffRes.error;
@@ -4107,9 +4107,9 @@ window.saveStaffEdits = async () => {
 };
 
 window.updateStaffStatus = async (uid, newStatus) => {
-    if (newStatus === 'blocked') { const reason = prompt("Enter reason for blocking this staff member:"); if (reason === null) return; const { error } = await supabaseClient.from("users").update({ status: newStatus, blockReason: reason || "Violation of policies" }).eq("id", uid); if (error) throw error; } else { if (confirm("Unblock this staff member?")) { const { error } = await supabaseClient.from("users").update({ status: newStatus, blockReason: "" }).eq("id", uid); if (error) throw error; } else return; } loadStaff();
+    if (newStatus === 'blocked') { const reason = prompt("Enter reason for blocking this staff member:"); if (reason === null) return; const { error } = await supabaseClient.from("users").update({ status: newStatus, blockReason: reason || "Violation of policies" }).eq("id", uid).eq("schoolId", currentSchoolId); if (error) throw error; } else { if (confirm("Unblock this staff member?")) { const { error } = await supabaseClient.from("users").update({ status: newStatus, blockReason: "" }).eq("id", uid).eq("schoolId", currentSchoolId); if (error) throw error; } else return; } loadStaff();
 };
-window.deleteStaff = async (uid) => { if (confirm("Permanently delete this staff member?")) { const { error } = await supabaseClient.from("users").delete().eq("id", uid); if (error) throw error; loadStaff(); } };
+window.deleteStaff = async (uid) => { if (confirm("Permanently delete this staff member?")) { const { error } = await supabaseClient.from("users").delete().eq("id", uid).eq("schoolId", currentSchoolId); if (error) throw error; loadStaff(); } };
 
 // ================= ACADEMIC VETO =================
 async function loadPendingResults() {
@@ -5535,7 +5535,7 @@ window.paSaveStaffAssignments = async (userId) => {
 let paPlacementStudentId = null;
 window.openStudentPlacement = async (studentId) => {
     paPlacementStudentId = studentId;
-    const { data } = await supabaseClient.from('students').select('*').eq('id', studentId).maybeSingle();
+    const { data } = await supabaseClient.from('students').select('*').eq('id', studentId).eq('schoolId', currentSchoolId).maybeSingle();
     if (!data) return alert('Student not found.');
     const row = data.data ? { ...data, ...data.data } : data;
     if (!phaseACache.departments.length) await paLoadCache();
@@ -5571,7 +5571,7 @@ window.paAutoRoll = async () => {
     const progId = document.getElementById('pa_pl_prog').value || null;
     const levelId = document.getElementById('pa_pl_level').value || null;
     const sectionId = document.getElementById('pa_pl_section').value || null;
-    const { data: st } = await supabaseClient.from('students').select('class').eq('id', paPlacementStudentId).maybeSingle();
+    const { data: st } = await supabaseClient.from('students').select('class').eq('id', paPlacementStudentId).eq('schoolId', currentSchoolId).maybeSingle();
     const cls = institutionIsCollege() ? null : (st && st.class) || null;
     const { data: num, error } = await supabaseClient.rpc('next_roll_code', {
         p_school_id: currentSchoolId, p_session_id: sessionId, p_program_id: progId, p_class: cls, p_section_id: sectionId
@@ -5597,7 +5597,7 @@ window.paSavePlacement = async () => {
         academicSessionId: document.getElementById('pa_pl_session').value || null,
         rollCode: document.getElementById('pa_pl_roll').value.trim() || null
     };
-    const { error } = await supabaseClient.from('students').update(payload).eq('id', paPlacementStudentId);
+    const { error } = await supabaseClient.from('students').update(payload).eq('id', paPlacementStudentId).eq('schoolId', currentSchoolId);
     if (error) return alert('Error saving placement: ' + error.message);
     document.getElementById('pa-placement-modal').style.display = 'none';
     alert('Academic placement saved.');
@@ -5662,7 +5662,7 @@ window.openStudentSubjectsModal = async (studentId) => {
     document.getElementById("hod_sub_voc").value = "Loading...";
     document.getElementById("hod-subjects-modal").style.display = "flex";
 
-    const { data, error } = await supabaseClient.from("students").select("data").eq("id", studentId).maybeSingle();
+    const { data, error } = await supabaseClient.from("students").select("data").eq("id", studentId).eq("schoolId", currentSchoolId).maybeSingle();
     if (!error && data && data.data) {
         document.getElementById("hod_sub_minor").value = data.data.minorSubject || "";
         document.getElementById("hod_sub_mdc").value = data.data.mdcSubject || "";

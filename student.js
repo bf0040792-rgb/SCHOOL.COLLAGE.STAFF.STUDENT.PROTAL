@@ -315,8 +315,9 @@ async function loadStudentDashboard() {
     (async () => {
         try {
             if (!currentStudentUser || !currentStudentUser.id) return;
-            const { data } = await supabaseClient.from('students')
-                .select('departmentId, programId, rollCode').eq('id', currentStudentUser.id).maybeSingle();
+            let stuQuery = supabaseClient.from('students').select('departmentId, programId, rollCode').eq('id', currentStudentUser.id);
+            if (currentSchoolId) stuQuery = stuQuery.eq('schoolId', currentSchoolId);
+            const { data } = await stuQuery.maybeSingle();
             if (!data || (!data.departmentId && !data.programId && !data.rollCode)) return;
             let dept = '', prog = '';
             try {
