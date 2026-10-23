@@ -45,6 +45,79 @@ function toEpochMillis(value) {
 
 window.portalModuleLoaded = true;
 
+// ============================================================================
+// PORTAL THEME & SIDEBAR LOGIC (Integrated from modern-ui.js)
+// ============================================================================
+(function initPortalTheme() {
+    try {
+        const savedTheme = localStorage.getItem('portalTheme') || 'dark';
+        if (savedTheme === 'light') {
+            if (document.body) {
+                document.body.classList.add('light-theme');
+            } else {
+                document.addEventListener("DOMContentLoaded", () => {
+                    if (document.body) document.body.classList.add('light-theme');
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to load portalTheme:', e);
+    }
+})();
+
+window.toggleTheme = function () {
+    if (!document.body) return;
+    document.body.classList.toggle('light-theme');
+    const isLight = document.body.classList.contains('light-theme');
+    try {
+        localStorage.setItem('portalTheme', isLight ? 'light' : 'dark');
+    } catch (e) {}
+    if (typeof window.initDashboardChart === 'function') {
+        window.initDashboardChart();
+    }
+};
+
+window.toggleSidebar = function (type = 'admin') {
+    const isStaff = type === 'staff';
+    const sidebarId = isStaff ? 'staff-main-sidebar' : 'main-sidebar';
+    const backdropId = isStaff ? 'staff-sidebar-backdrop' : 'sidebar-backdrop';
+    const sidebar = document.getElementById(sidebarId);
+    const backdrop = document.getElementById(backdropId);
+    if (!sidebar) return;
+
+    const isMobile = window.innerWidth <= 1024;
+    if (isMobile) {
+        const isOpen = sidebar.classList.contains('sidebar-open');
+        if (isOpen) {
+            sidebar.classList.remove('sidebar-open');
+            if (backdrop) backdrop.classList.remove('active');
+        } else {
+            sidebar.classList.add('sidebar-open');
+            if (backdrop) backdrop.classList.add('active');
+        }
+    } else {
+        sidebar.classList.toggle('sidebar-collapsed');
+    }
+};
+
+window.filterSidebarMenus = function (query = '', type = 'admin') {
+    const prefix = type === 'staff' ? '#staff-main-sidebar' : '#main-sidebar';
+    const q = (query || '').toLowerCase().trim();
+    document.querySelectorAll(`${prefix} .sidebar-nav-item`).forEach(item => {
+        const text = (item.innerText || '').toLowerCase();
+        if (!q || text.includes(q)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    document.querySelectorAll(`${prefix} .sidebar-group`).forEach(group => {
+        const anyVisible = Array.from(group.querySelectorAll('.sidebar-nav-item')).some(i => i.style.display !== 'none');
+        group.style.display = anyVisible ? 'block' : 'none';
+    });
+};
+
+
 let currentSchoolId = ""; let currentSchoolName = ""; let currentSignatureUrl = ""; let currentThemeColor = "#1e3c72"; let currentSecondaryColor = "#ffffff"; let currentTemplateStyle = "wave"; let currentIdTemplateUrl = "";
 let currentSchoolNameColor = "#ffffff"; let currentStudentNameColor = "#d32f2f"; let currentDetailsColor = "#333333"; let currentPhotoBgColor = "#ffffff";
 window.fetchedStudents = []; window.fetchedStaff = []; let currentEditStaffId = null;
