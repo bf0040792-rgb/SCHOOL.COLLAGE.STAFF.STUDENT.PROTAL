@@ -616,124 +616,219 @@
             </div>
 
             <div class="main-content flex-1 overflow-y-auto p-4 md:p-8" id="main-scroll-area">
-                <div class="header-title">
-                    <h1 id="tab-title">Dashboard</h1>
+                <!-- Executive Compact Heading Banner (Company Portal Style) -->
+                <div class="compact-heading">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-widest uppercase" style="background: var(--m-accent-soft); color: var(--m-accent); border: 1px solid var(--m-line);">
+                                <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--m-accent);"></span> CAMPUS COMMAND CORE
+                            </span>
+                            <span class="text-[11px] font-mono font-semibold" style="color: var(--m-muted);">v4.2 LTS</span>
+                        </div>
+                        <h3 id="tab-title" style="margin: 0; font-family: 'Poppins', sans-serif;">Institutional Operations Desk</h3>
+                        <p style="margin: 4px 0 0;">Real-time campus telemetry, student enrollment metrics & academic verification queues.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="session-chip" id="live-time-chip" style="font-family: 'JetBrains Mono', monospace;"><i class="far fa-clock text-cyan-400"></i> Live Core Sync</div>
+                        <button type="button" onclick="if(window.initDashboardChart) window.initDashboardChart();" class="px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-sm" style="background: var(--m-panel-2); color: var(--m-accent); border: 1px solid var(--m-line); cursor: pointer;" title="Refresh live telemetry metrics">
+                            <i class="fas fa-arrows-rotate text-[11px]"></i> <span>SYNC</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- TAB: DASHBOARD -->
                 <div id="tab-dashboard" class="tab-content active">
-                    <div class="stats-grid">
-                        <div class="stat-card dashboard-drill-card" style="cursor: pointer;"
-                            onclick="window.openDashboardDetail('students-all')">
-                            <h3>Total Students</h3>
-                            <h2 id="count-students">0</h2>
-                            <small>Click to view full student database</small>
+                    <!-- Primary KPI Stat Strip -->
+                    <div class="stat-strip">
+                        <div class="queue-card dashboard-drill-card cursor-pointer" onclick="window.openDashboardDetail('students-all')">
+                            <div class="queue-label">
+                                <span>Total Students</span>
+                                <span class="text-indigo-400"><i class="fas fa-user-graduate"></i></span>
+                            </div>
+                            <div class="queue-number"><span id="count-students">0</span></div>
+                            <div class="queue-foot"><i class="fas fa-database text-indigo-400 mr-1 text-[10px]"></i>Enrolled • Full Database</div>
                         </div>
-                        <div class="stat-card dashboard-drill-card"
-                            style="border-bottom-color: #3182ce; cursor: pointer;"
-                            onclick="window.openDashboardDetail('attendance')">
-                            <h3>Today's Attendance</h3>
-                            <h2 id="count-attendance" style="color:#3182ce">0%</h2>
-                            <small>Click to open daily attendance</small>
+                        <div class="queue-card dashboard-drill-card cursor-pointer" onclick="window.openDashboardDetail('attendance')">
+                            <div class="queue-label">
+                                <span>Today's Attendance</span>
+                                <span class="text-cyan-400"><i class="fas fa-clipboard-user"></i></span>
+                            </div>
+                            <div class="queue-number"><span id="count-attendance" style="color: var(--m-accent);">0%</span></div>
+                            <div class="queue-foot"><i class="fas fa-circle-check text-cyan-400 mr-1 text-[10px]"></i>Realtime Attendance Log</div>
                         </div>
-                        <div class="stat-card dashboard-drill-card"
-                            style="border-bottom-color: #e53e3e; cursor: pointer;"
-                            onclick="window.openDashboardDetail('pending')">
-                            <h3>Pending Approvals</h3>
-                            <h2 id="count-pending" style="color:#e53e3e">0</h2>
-                            <small>Click to filter pending students</small>
+                        <div class="queue-card dashboard-drill-card cursor-pointer" onclick="window.openDashboardDetail('pending')">
+                            <div class="queue-label">
+                                <span>Pending Approvals</span>
+                                <span class="text-rose-400"><i class="fas fa-hourglass-half"></i></span>
+                            </div>
+                            <div class="queue-number"><span id="count-pending" style="color: #f87171;">0</span></div>
+                            <div class="queue-foot"><i class="fas fa-user-clock text-rose-400 mr-1 text-[10px]"></i>Verification Queue</div>
                         </div>
-                        <div class="stat-card dashboard-drill-card"
-                            style="border-bottom-color: #38a169; cursor: pointer;"
-                            onclick="window.openDashboardDetail('staff')">
-                            <h3>Total Staff</h3>
-                            <h2 id="count-staff">0</h2>
-                            <small>Click to manage staff</small>
+                        <div class="queue-card dashboard-drill-card cursor-pointer" onclick="window.openDashboardDetail('staff')">
+                            <div class="queue-label">
+                                <span>Total Staff</span>
+                                <span class="text-emerald-400"><i class="fas fa-chalkboard-user"></i></span>
+                            </div>
+                            <div class="queue-number"><span id="count-staff">0</span></div>
+                            <div class="queue-foot"><i class="fas fa-users text-emerald-400 mr-1 text-[10px]"></i>Active Teachers & Faculty</div>
                         </div>
-                        <div class="stat-card dashboard-drill-card"
-                            style="border-bottom-color: #f39c12; cursor: pointer;"
-                            onclick="window.openDashboardDetail('notices')">
-                            <h3>Active Notices</h3>
-                            <h2 id="count-notices">0</h2>
-                            <small>Click to open notices</small>
+                        <div class="queue-card dashboard-drill-card cursor-pointer" onclick="window.openDashboardDetail('notices')">
+                            <div class="queue-label">
+                                <span>Active Notices</span>
+                                <span class="text-amber-400"><i class="fas fa-bullhorn"></i></span>
+                            </div>
+                            <div class="queue-number"><span id="count-notices">0</span></div>
+                            <div class="queue-foot"><i class="fas fa-paper-plane text-amber-400 mr-1 text-[10px]"></i>Broadcast Circulars</div>
                         </div>
-                        <div class="stat-card dashboard-drill-card"
-                            style="border-bottom-color: #27ae60; cursor: pointer;"
-                            onclick="window.openDashboardDetail('finance')">
-                            <h3>Total Revenue</h3>
-                            <h2 id="count-revenue" style="color:#27ae60">₹ 0</h2>
-                            <small>Click to open ledger</small>
+                        <div class="queue-card dashboard-drill-card cursor-pointer" onclick="window.openDashboardDetail('finance')">
+                            <div class="queue-label">
+                                <span>Total Revenue</span>
+                                <span class="text-amber-300"><i class="fas fa-coins"></i></span>
+                            </div>
+                            <div class="queue-number"><span id="count-revenue" style="color: var(--m-green);">₹ 0</span></div>
+                            <div class="queue-foot"><i class="fas fa-wallet text-amber-300 mr-1 text-[10px]"></i>Fee Collection Ledger</div>
                         </div>
                     </div>
 
-                    <div class="card" style="border-left: 4px solid #8b5cf6;">
-                        <div
-                            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                            <h3 style="margin:0;"><i class="fas fa-chart-pie"></i> Visual Analytics</h3>
-                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <!-- Quick Tools Grid with Rich Tooltips -->
+                    <div class="section-line">
+                        <h4><i class="fas fa-bolt text-amber-400 text-xs"></i> Quick Management Tools</h4>
+                        <span>Instant access to high-priority campus operations</span>
+                    </div>
+                    <div class="feature-launch">
+                        <div class="tool-card" onclick="if(window.switchTab) window.switchTab('tab-students')">
+                            <span class="launch-symbol" title="Student Database & Admissions"><i class="fas fa-user-graduate"></i><span class="launch-tooltip"><strong>Student Database</strong>Search, filter, and manage enrolled students, issue certificates, and export records.</span></span>
+                            <strong>Students & Certs</strong>
+                            <small>Manage Campus Database</small>
+                        </div>
+                        <div class="tool-card" onclick="if(window.switchTab) window.switchTab('tab-daily-attendance')">
+                            <span class="launch-symbol" title="Daily Attendance Register"><i class="fas fa-clipboard-user"></i><span class="launch-tooltip"><strong>Daily Attendance</strong>Record class-wise student attendance, review absentees, and generate daily reports.</span></span>
+                            <strong>Daily Attendance</strong>
+                            <small>Mark & Review Logs</small>
+                        </div>
+                        <div class="tool-card" onclick="if(window.switchTab) window.switchTab('tab-admit-cards-module')">
+                            <span class="launch-symbol" title="Exam Admit Cards"><i class="fas fa-id-card-alt"></i><span class="launch-tooltip"><strong>Admit Cards</strong>Generate, preview, and print customized examination roll numbers and admit cards.</span></span>
+                            <strong>Admit Cards</strong>
+                            <small>Exam Roll Numbers</small>
+                        </div>
+                        <div class="tool-card" onclick="if(window.switchTab) window.switchTab('tab-staff')">
+                            <span class="launch-symbol" title="Staff & Teacher Directory"><i class="fas fa-chalkboard-user"></i><span class="launch-tooltip"><strong>Staff Management</strong>Manage teachers, assign departments, and configure staff portal access privileges.</span></span>
+                            <strong>Staff & Teachers</strong>
+                            <small>Manage School Faculty</small>
+                        </div>
+                        <div class="tool-card" onclick="if(window.switchTab) window.switchTab('tab-finance')">
+                            <span class="launch-symbol" title="Fee & Financial Ledger"><i class="fas fa-file-invoice-dollar"></i><span class="launch-tooltip"><strong>Finance & Fees</strong>Track fee payments, generate vouchers, review pending balances, and audit income.</span></span>
+                            <strong>Fee & Ledger</strong>
+                            <small>Accounts & Collection</small>
+                        </div>
+                        <div class="tool-card" onclick="if(window.switchTab) window.switchTab('tab-notices')">
+                            <span class="launch-symbol" title="Notice Board & Circulars"><i class="fas fa-bullhorn"></i><span class="launch-tooltip"><strong>Notice Board</strong>Publish campus-wide announcements, holiday alerts, and emergency bulletins.</span></span>
+                            <strong>Notice Board</strong>
+                            <small>Broadcast Circulars</small>
+                        </div>
+                    </div>
+
+                    <!-- Visual Analytics Main Chart Panel -->
+                    <div class="mock-panel" style="margin-top: 22px;">
+                        <div class="panel-head">
+                            <strong><i class="fas fa-chart-pie text-cyan-400 mr-1.5"></i> Visual Campus Analytics</strong>
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                                 <input type="date" id="chart-specific-date" class="input-premium"
-                                    style="padding: 5px 10px; font-size: 12px; width: auto;"
+                                    style="padding: 5px 10px; font-size: 11px; width: auto;"
                                     onchange="window.initDashboardChart()">
                                 <select id="chart-date-filter" class="input-premium"
-                                    style="padding: 5px 10px; font-size: 12px; width: auto;"
+                                    style="padding: 5px 10px; font-size: 11px; width: auto;"
                                     onchange="window.initDashboardChart()">
                                     <option value="All Time">All Time</option>
                                     <option value="This Month">This Month</option>
                                     <option value="Last Month">Last Month</option>
                                     <option value="This Year">This Year</option>
                                 </select>
-                                <button class="action-btn btn-blue" onclick="window.initDashboardChart()"
-                                    style="padding:5px 12px; font-size:12px;"><i class="fas fa-rotate"></i>
-                                    Refresh</button>
+                                <button type="button" class="action-btn btn-blue" onclick="window.initDashboardChart()"
+                                    style="padding:5px 12px; font-size:11px; cursor: pointer;"><i class="fas fa-rotate"></i> Refresh</button>
                             </div>
                         </div>
-                        <canvas id="dashboardChart" style="max-height: 320px; width: 100%; margin-top: 15px;"></canvas>
-                    </div>
-
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;"
-                        class="analytics-grid">
-                        <div class="card" style="border-left: 4px solid #ec4899;">
-                            <h3 style="margin:0 0 10px 0;"><i class="fas fa-venus-mars" style="color:#ec4899"></i>
-                                Gender Distribution</h3>
-                            <canvas id="genderChart" style="max-height: 240px; width:100%;"></canvas>
-                        </div>
-                        <div class="card" style="border-left: 4px solid #3b82f6;">
-                            <h3 style="margin:0 0 10px 0;"><i class="fas fa-users" style="color:#3b82f6"></i> Class
-                                Enrollment</h3>
-                            <canvas id="classEnrollChart" style="max-height: 240px; width:100%;"></canvas>
-                        </div>
-                        <div class="card" style="border-left: 4px solid #10b981;">
-                            <h3 style="margin:0 0 10px 0;"><i class="fas fa-calendar-check" style="color:#10b981"></i>
-                                Attendance Trend (Last 7 Days)</h3>
-                            <canvas id="attendanceTrendChart" style="max-height: 240px; width:100%;"></canvas>
-                        </div>
-                        <div class="card" style="border-left: 4px solid #f59e0b;">
-                            <h3 style="margin:0 0 10px 0;"><i class="fas fa-indian-rupee-sign"
-                                    style="color:#f59e0b"></i> Fee Collection (Monthly)</h3>
-                            <canvas id="feeCollectionChart" style="max-height: 240px; width:100%;"></canvas>
+                        <div style="min-height: 280px; position: relative;">
+                            <canvas id="dashboardChart" style="max-height: 320px; width: 100%;"></canvas>
                         </div>
                     </div>
 
-                    <div class="card" style="border-left: 4px solid #38b2ac;">
-                        <h3><i class="fas fa-link"></i> Admission Link Settings</h3>
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                    <!-- Multi-Metric Analytics Grid -->
+                    <div class="mock-grid-2">
+                        <div class="mock-panel">
+                            <div class="panel-head">
+                                <strong><i class="fas fa-venus-mars text-pink-400 mr-1.5"></i> Gender Distribution</strong>
+                                <span>Student Ratio</span>
+                            </div>
+                            <div style="height:240px; min-height:240px; position:relative;">
+                                <canvas id="genderChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="mock-panel">
+                            <div class="panel-head">
+                                <strong><i class="fas fa-users text-blue-400 mr-1.5"></i> Class Enrollment</strong>
+                                <span>Strength by Class</span>
+                            </div>
+                            <div style="height:240px; min-height:240px; position:relative;">
+                                <canvas id="classEnrollChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="mock-panel">
+                            <div class="panel-head">
+                                <strong><i class="fas fa-calendar-check text-emerald-400 mr-1.5"></i> Attendance Trend</strong>
+                                <span>Last 7 Days</span>
+                            </div>
+                            <div style="height:240px; min-height:240px; position:relative;">
+                                <canvas id="attendanceTrendChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="mock-panel">
+                            <div class="panel-head">
+                                <strong><i class="fas fa-coins text-amber-400 mr-1.5"></i> Fee Collection</strong>
+                                <span>Monthly Trajectory</span>
+                            </div>
+                            <div style="height:240px; min-height:240px; position:relative;">
+                                <canvas id="feeCollectionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modern Online Admission Portal Gateway Card -->
+                    <div class="mock-panel" style="margin-top: 18px;">
+                        <div class="panel-head">
+                            <strong><i class="fas fa-link text-teal-400 mr-1.5"></i> Online Admission Portal Gateway</strong>
+                            <span class="text-xs font-mono font-bold text-teal-400"><i class="fas fa-globe mr-1"></i> PUBLIC ADMISSION DESK</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--m-panel-2); padding: 16px 20px; border-radius: 12px; border: 1px solid var(--m-line); flex-wrap: wrap; gap: 12px;">
                             <div>
-                                <strong style="color:#2d3748; font-size:15px;">Accept New Admissions</strong><br>
-                                <span style="font-size:12px; color:#7f8c8d;">Turn off to show "Admissions Closed" on the
-                                    form.</span>
+                                <strong style="color: var(--m-ink-heading); font-size: 14px; font-family: 'Poppins', sans-serif;">Accept Online Admissions</strong>
+                                <p style="font-size: 11.5px; color: var(--m-muted); margin: 3px 0 0;">When enabled, students can submit public applications. Turn off to display "Admissions Closed".</p>
                             </div>
-                            <label class="switch"><input type="checkbox" id="admissionToggle"><span
-                                    class="slider"></span></label>
+                            <label class="switch"><input type="checkbox" id="admissionToggle"><span class="slider"></span></label>
                         </div>
-                        <button class="submit-btn" onclick="generateRegistrationLink()"
-                            style="margin-top:15px; width:100%;"><i class="fas fa-magic"></i> Generate & Show
-                            Link</button>
+                        <div style="margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button class="action-btn btn-blue" onclick="generateRegistrationLink()" style="padding: 10px 18px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fas fa-magic"></i> Generate & Show Link
+                            </button>
+                        </div>
+                        <div id="link-display-box" class="link-display-box" style="display:none; margin-top: 14px;">
+                            <input type="text" id="short-link-input" readonly class="input-premium" style="flex:1;">
+                            <button class="action-btn btn-green" onclick="copyToClipboard()" style="padding: 8px 16px; cursor: pointer;"><i class="fas fa-copy"></i> Copy</button>
+                        </div>
+                    </div>
 
-                        <div id="link-display-box" class="link-display-box" style="display:none;">
-                            <input type="text" id="short-link-input" readonly>
-                            <button onclick="copyToClipboard()"><i class="fas fa-copy"></i> Copy</button>
+                    <!-- System Core Integrity Online Status Banner -->
+                    <div class="insight-banner" style="margin-top:20px; border: 1px solid var(--m-line); border-radius: 14px; padding: 14px 18px; background: var(--m-panel); display: flex; align-items: center; gap: 14px; box-shadow: var(--m-shadow); flex-wrap: wrap;">
+                        <span class="insight-symbol" style="width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: var(--m-accent); background: var(--m-accent-soft); font-size: 16px; border: 1px solid var(--m-line);">
+                            <i class="fas fa-shield-halved"></i>
+                        </span>
+                        <div>
+                            <strong style="display: block; font-size: 13px; color: var(--m-ink-heading); font-family: 'Poppins', sans-serif;">Campus Core Integrity Online</strong>
+                            <span style="display: block; color: var(--m-muted); font-size: 11px; margin-top: 2px;">School database operational • Realtime channels active • Role-based access verified.</span>
                         </div>
+                        <span class="pill" style="margin-left:auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; color: var(--m-green); background: rgba(16, 185, 129, 0.12); font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> All Systems Operational
+                        </span>
                     </div>
                 </div>
 

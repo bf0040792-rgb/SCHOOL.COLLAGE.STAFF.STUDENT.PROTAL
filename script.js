@@ -65,6 +65,22 @@ window.portalModuleLoaded = true;
     }
 })();
 
+// Auto-update Live Core Sync Chip
+function updateLiveTimeChip() {
+    const chip = document.getElementById('live-time-chip');
+    if (!chip) return;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    chip.innerHTML = `<i class="far fa-clock text-cyan-400"></i> ${timeStr} • Live Core Sync`;
+}
+setInterval(updateLiveTimeChip, 1000);
+if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", updateLiveTimeChip);
+} else {
+    updateLiveTimeChip();
+}
+
+
 window.toggleTheme = function () {
     if (!document.body) return;
     document.body.classList.toggle('light-theme');
