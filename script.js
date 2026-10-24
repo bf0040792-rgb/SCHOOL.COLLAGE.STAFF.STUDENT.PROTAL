@@ -323,6 +323,13 @@ window.switchTab = (targetId) => {
     if (targetId === 'tab-mailbox') {
         loadInbox(); loadSentMail();
     }
+    if (targetId === 'tab-academics') {
+        window.populateAcademicClasses?.('ch_syl_class');
+        window.populateAcademicClasses?.('ch_ds_class');
+        window.populateAcademicClasses?.('marks_class');
+        window.loadSyllabusList?.();
+        window.loadDateSheetList?.();
+    }
 };
 
 window.openDashboardDetail = (type) => {
@@ -821,7 +828,7 @@ window.copyToClipboard = () => {
 };
 
 function populateClassDropdowns() {
-    const classes = institutionIsCollege() ? ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester"] : ["Nursery", "LKG", "UKG", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
+    const classes = institutionIsCollege() ? ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester", "7th Semester", "8th Semester"] : ["Nursery", "LKG", "UKG", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
     let feeClsOpts = '<option value="">-- Select --</option>';
     classes.forEach(c => feeClsOpts += `<option value="${c}">${c}</option>`);
     if(document.getElementById("fee_class")) document.getElementById("fee_class").innerHTML = feeClsOpts;
@@ -831,18 +838,22 @@ function populateClassDropdowns() {
         let has1st = false;
         let hasAll = false;
         Array.from(select.options).forEach(opt => {
-            if (opt.value === "1st") has1st = true;
-            if (opt.value === "All" || opt.value === "all") hasAll = true;
+            if (opt.value === "1st" || opt.value === "1st Semester") has1st = true;
+            if (opt.value === "All" || opt.value === "all" || opt.value === "All Classes" || opt.value === "All Semesters") hasAll = true;
         });
         if (has1st) {
             let html = "";
-            if (hasAll) html += `<option value="All">All Classes</option>`;
+            if (hasAll) html += `<option value="${institutionIsCollege() ? 'All Semesters' : 'All Classes'}">${institutionIsCollege() ? 'All Semesters' : 'All Classes'}</option>`;
             else if (select.options[0].value === "") html += `<option value="">${select.options[0].text}</option>`;
             
             classes.forEach(c => html += `<option value="${c}">${c}</option>`);
             select.innerHTML = html;
         }
     });
+
+    window.populateAcademicClasses?.('ch_syl_class');
+    window.populateAcademicClasses?.('ch_ds_class');
+    window.populateAcademicClasses?.('marks_class');
 }
 
 async function checkAdmissionStatus() {
@@ -1099,7 +1110,403 @@ const uploadToCloudinary = async (fileInputId, btnId, defaultText) => {
     }
 };
 
-function loadAllData() { loadStudents(); loadStaff(); loadNotices(); loadInbox(); loadSentMail(); loadTransactions(); loadPendingResults(); window.initDashboardChart(); window.loadTransportRoutes(); window.loadInventory(); loadAllSchools(); loadStudentTransfers(); loadCoreEduChat(); window.loadStudentComplaints(); }
+// ================= SUPABASE STORAGE HELPER FOR ACADEMIC DOCUMENTS & PURGE =================
+window.uploadDocumentToSupabase = async (fileInputOrFile, folderPath, oldStoragePath = null) => {
+    let file = null;
+    if (typeof fileInputOrFile === 'string') {
+        const inputEl = document.getElementById(fileInputOrFile);
+        if (inputEl && inputEl.files && inputEl.files[0]) file = inputEl.files[0];
+    } else if (fileInputOrFile instanceof File) {
+        file = fileInputOrFile;
+    }
+    if (!file) return null;
+
+    if (file.size > 52428800) {
+        alert("File size exceeds 50 MB limit. Please upload a smaller document.");
+        return null;
+    }
+
+    // Auto-reclaim storage: Delete old file if provided
+    if (oldStoragePath) {
+        try {
+            await supabaseClient.storage.from('school-documents').remove([oldStoragePath]);
+            console.log("Storage reclaimed. Purged old file:", oldStoragePath);
+        } catch (delErr) {
+            console.warn("Storage reclaim warning:", delErr);
+        }
+    }
+
+    const cleanSchoolId = (currentSchoolId || 'global').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${cleanSchoolId}/${folderPath}/${Date.now()}_${safeName}`;
+
+    try {
+        const { data, error } = await supabaseClient.storage.from('school-documents').upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+        });
+        if (error) throw error;
+
+        const { data: pubUrlData } = supabaseClient.storage.from('school-documents').getPublicUrl(filePath);
+        return {
+            fileUrl: pubUrlData.publicUrl,
+            storagePath: filePath,
+            fileSize: file.size,
+            fileName: file.name
+        };
+    } catch (err) {
+        console.error("Supabase storage upload error:", err);
+        alert("Upload error: " + (err.message || err));
+        return null;
+    }
+};
+
+window.deleteDocumentFromSupabase = async (storagePath) => {
+    if (!storagePath) return false;
+    try {
+        const { error } = await supabaseClient.storage.from('school-documents').remove([storagePath]);
+        if (error) console.warn("Supabase document delete warning:", error);
+        return true;
+    } catch (e) {
+        console.error("deleteDocumentFromSupabase exception:", e);
+        return false;
+    }
+};
+
+window.populateAcademicClasses = (dropdownId) => {
+    const el = document.getElementById(dropdownId);
+    if (!el) return;
+    const isCol = typeof institutionIsCollege === 'function' ? institutionIsCollege() : false;
+    let list = isCol ? 
+        ["All Semesters", "1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester", "7th Semester", "8th Semester"] :
+        ["All Classes", "Nursery", "LKG", "UKG", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
+    
+    let html = '<option value="">-- Choose Class / Semester --</option>';
+    list.forEach(c => {
+        html += `<option value="${c}">${c}</option>`;
+    });
+    el.innerHTML = html;
+};
+
+// ================= SYLLABUS HUB & DATA RECLAIM =================
+window.loadSyllabusList = async () => {
+    if (!currentSchoolId) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('syllabus')
+            .select('*')
+            .eq('schoolId', currentSchoolId)
+            .order('createdAt', { ascending: false });
+        if (error) throw error;
+
+        const renderTable = (tbodyId, isStaff = false) => {
+            const tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:16px; color:#8fa3bf;">No syllabus documents uploaded yet.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = data.map(s => {
+                const safeUrl = (s.fileUrl || '').replace(/"/g, '&quot;');
+                const safeId = (s.id || '').replace(/'/g, "\\'");
+                const safePath = (s.storagePath || '').replace(/'/g, "\\'");
+                const sizeText = s.fileSize ? ` · ${(s.fileSize / (1024 * 1024)).toFixed(2)} MB` : '';
+                const dateText = s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-GB') : (s.date || '—');
+                return `<tr style="border-bottom:1px solid #1c2c47;">
+                    <td style="padding:10px 12px; font-weight:700; color:#38bdf8;">${s.class || 'All Classes'}</td>
+                    <td style="padding:10px 12px; font-weight:600; color:#f1f5f9;">${s.subject || 'General'}</td>
+                    <td style="padding:10px 12px; color:#94a3b8;">${s.title || 'Syllabus'}<span style="font-size:10px; color:#64748b;">${sizeText}</span></td>
+                    <td style="padding:10px 12px; color:#64748b; font-size:12px;">${s.uploadedByName || s.uploadedBy || 'Staff'}</td>
+                    <td style="padding:10px 12px; color:#64748b; font-size:12px;">${dateText}</td>
+                    <td style="padding:10px 12px;">
+                        ${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="action-btn" style="background:#0284c7; color:#fff; padding:4px 10px; font-size:11px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; text-decoration:none;"><i class="fas fa-file-pdf"></i> View PDF</a>` : '<span style="color:#64748b;">No File</span>'}
+                    </td>
+                    <td style="padding:10px 12px;">
+                        <button class="action-btn" style="background:rgba(225,29,72,0.2); border:1px solid #f43f5e; color:#fda4af; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer;" onclick="window.deleteSyllabus('${safeId}', '${safePath}')" title="Permanently purges file from Supabase storage"><i class="fas fa-trash"></i> Delete Old File</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        };
+
+        renderTable('chairman-syllabus-table');
+        renderTable('staff-syllabus-table', true);
+        window.updateStorageMeter?.();
+    } catch (err) {
+        console.error("loadSyllabusList error:", err);
+    }
+};
+
+window.publishSyllabus = async (prefix = 'ch') => {
+    const classEl = document.getElementById(`${prefix}_syl_class`);
+    const subjectEl = document.getElementById(`${prefix}_syl_subject`);
+    const titleEl = document.getElementById(`${prefix}_syl_title`);
+    const fileEl = document.getElementById(`${prefix}_syl_file`);
+    const btn = document.getElementById(`${prefix}_syl_btn`);
+
+    const targetClass = classEl ? classEl.value.trim() : '';
+    const subject = subjectEl ? subjectEl.value.trim() : '';
+    const title = titleEl ? titleEl.value.trim() : '';
+    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+
+    if (!targetClass || !subject || !title) {
+        return alert("Please select Class, enter Subject Name and Document Title.");
+    }
+    if (!file) {
+        return alert("Please select a PDF document to upload.");
+    }
+
+    if (btn) { btn.disabled = true; btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Uploading to Supabase Storage..."; }
+
+    try {
+        // Space protection: check if existing syllabus already exists for same schoolId + class + subject
+        let oldStoragePath = null;
+        const { data: existing } = await supabaseClient
+            .from('syllabus')
+            .select('id, storagePath')
+            .eq('schoolId', currentSchoolId)
+            .eq('class', targetClass)
+            .eq('subject', subject)
+            .maybeSingle();
+
+        if (existing && existing.storagePath) {
+            oldStoragePath = existing.storagePath;
+            console.log("Found existing syllabus to overwrite and purge:", oldStoragePath);
+        }
+
+        const uploadRes = await window.uploadDocumentToSupabase(file, 'syllabus', oldStoragePath);
+        if (!uploadRes) throw new Error("Document upload failed.");
+
+        const actorName = (currentStaffDoc && currentStaffDoc.name) || currentSchoolName || 'Chairman';
+        const actorId = (currentStaffDoc && currentStaffDoc.id) || currentSchoolId;
+
+        const payload = {
+            schoolId: currentSchoolId,
+            class: targetClass,
+            subject,
+            title,
+            fileUrl: uploadRes.fileUrl,
+            storagePath: uploadRes.storagePath,
+            fileSize: uploadRes.fileSize,
+            uploadedBy: actorId,
+            uploadedByName: actorName,
+            createdAt: new Date().toISOString()
+        };
+
+        if (existing && existing.id) {
+            await supabaseClient.from('syllabus').update(payload).eq('id', existing.id);
+        } else {
+            payload.id = 'syl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+            await supabaseClient.from('syllabus').insert([payload]);
+        }
+
+        alert("✅ Syllabus PDF uploaded successfully! Old files purged to reclaim space.");
+        if (subjectEl) subjectEl.value = '';
+        if (titleEl) titleEl.value = '';
+        if (fileEl) fileEl.value = '';
+
+        await window.loadSyllabusList();
+    } catch (err) {
+        console.error("publishSyllabus error:", err);
+        alert("Error publishing syllabus: " + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = "<i class='fas fa-upload'></i> Upload to Supabase Storage"; }
+    }
+};
+
+window.deleteSyllabus = async (id, storagePath) => {
+    if (!confirm("⚠️ Are you sure you want to delete this syllabus? The PDF file will be permanently purged from Supabase Storage to free up space.")) return;
+    try {
+        if (storagePath) {
+            await window.deleteDocumentFromSupabase(storagePath);
+        }
+        const { error } = await supabaseClient.from('syllabus').delete().eq('id', id).eq('schoolId', currentSchoolId);
+        if (error) throw error;
+        alert("✅ Syllabus deleted and storage space reclaimed!");
+        await window.loadSyllabusList();
+    } catch (err) {
+        console.error("deleteSyllabus error:", err);
+        alert("Error deleting syllabus: " + (err.message || err));
+    }
+};
+
+// ================= DATESHEET SCHEDULER & DATA RECLAIM =================
+window.loadDateSheetList = async () => {
+    if (!currentSchoolId) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('datesheets')
+            .select('*')
+            .eq('schoolId', currentSchoolId)
+            .order('createdAt', { ascending: false });
+        if (error) throw error;
+
+        const renderTable = (tbodyId, isStaff = false) => {
+            const tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:16px; color:#8fa3bf;">No datesheets scheduled yet.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = data.map(ds => {
+                const safeUrl = (ds.fileUrl || '').replace(/"/g, '&quot;');
+                const safeId = (ds.id || '').replace(/'/g, "\\'");
+                const safePath = (ds.storagePath || '').replace(/'/g, "\\'");
+                const dateText = ds.date ? `${ds.date} ${ds.time ? `(${ds.time})` : ''}` : '—';
+                return `<tr style="border-bottom:1px solid #1c2c47;">
+                    <td style="padding:10px 12px; font-weight:700; color:#38bdf8;">${ds.class || 'All Classes'}</td>
+                    <td style="padding:10px 12px; font-weight:600; color:#f1f5f9;">${ds.examName || 'Exam'}</td>
+                    <td style="padding:10px 12px; color:#94a3b8;">${ds.subject || 'All Subjects'}</td>
+                    <td style="padding:10px 12px; color:#34d399; font-weight:600; font-size:12px;">${dateText}</td>
+                    <td style="padding:10px 12px; color:#64748b; font-size:12px;">${ds.uploadedByName || ds.uploadedBy || 'Staff'}</td>
+                    <td style="padding:10px 12px;">
+                        ${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="action-btn" style="background:#059669; color:#fff; padding:4px 10px; font-size:11px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; text-decoration:none;"><i class="fas fa-calendar-check"></i> View PDF</a>` : '<span style="color:#64748b;">No File</span>'}
+                    </td>
+                    <td style="padding:10px 12px;">
+                        <button class="action-btn" style="background:rgba(225,29,72,0.2); border:1px solid #f43f5e; color:#fda4af; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer;" onclick="window.deleteDateSheet('${safeId}', '${safePath}')" title="Permanently purges file from Supabase storage"><i class="fas fa-trash"></i> Delete Old File</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        };
+
+        renderTable('chairman-datesheet-table');
+        renderTable('staff-datesheet-table', true);
+        window.updateStorageMeter?.();
+    } catch (err) {
+        console.error("loadDateSheetList error:", err);
+    }
+};
+
+window.publishDateSheet = async (prefix = 'ch') => {
+    const classEl = document.getElementById(`${prefix}_ds_class`);
+    const examEl = document.getElementById(`${prefix}_ds_exam`);
+    const subjectEl = document.getElementById(`${prefix}_ds_subject`);
+    const dateEl = document.getElementById(`${prefix}_ds_date`);
+    const timeEl = document.getElementById(`${prefix}_ds_time`);
+    const fileEl = document.getElementById(`${prefix}_ds_file`);
+    const btn = document.getElementById(`${prefix}_ds_btn`);
+
+    const targetClass = classEl ? classEl.value.trim() : '';
+    const examName = examEl ? examEl.value.trim() : '';
+    const subject = subjectEl ? subjectEl.value.trim() : '';
+    const dateVal = dateEl ? dateEl.value.trim() : '';
+    const timeVal = timeEl ? timeEl.value.trim() : '';
+    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+
+    if (!targetClass || !examName) {
+        return alert("Please select Class and enter Exam Name.");
+    }
+
+    if (btn) { btn.disabled = true; btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Scheduling..."; }
+
+    try {
+        let fileUrl = '';
+        let storagePath = null;
+        let fileSize = 0;
+
+        if (file) {
+            let oldStoragePath = null;
+            const { data: existing } = await supabaseClient
+                .from('datesheets')
+                .select('id, storagePath')
+                .eq('schoolId', currentSchoolId)
+                .eq('class', targetClass)
+                .eq('examName', examName)
+                .maybeSingle();
+
+            if (existing && existing.storagePath) {
+                oldStoragePath = existing.storagePath;
+            }
+
+            const uploadRes = await window.uploadDocumentToSupabase(file, 'datesheets', oldStoragePath);
+            if (uploadRes) {
+                fileUrl = uploadRes.fileUrl;
+                storagePath = uploadRes.storagePath;
+                fileSize = uploadRes.fileSize;
+            }
+        }
+
+        const actorName = (currentStaffDoc && currentStaffDoc.name) || currentSchoolName || 'Chairman';
+        const actorId = (currentStaffDoc && currentStaffDoc.id) || currentSchoolId;
+
+        const payload = {
+            id: 'ds_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            schoolId: currentSchoolId,
+            class: targetClass,
+            examName,
+            subject: subject || 'All Subjects',
+            date: dateVal,
+            time: timeVal,
+            fileUrl,
+            storagePath,
+            fileSize,
+            uploadedBy: actorId,
+            uploadedByName: actorName,
+            createdAt: new Date().toISOString()
+        };
+
+        const { error } = await supabaseClient.from('datesheets').insert([payload]);
+        if (error) throw error;
+
+        alert("✅ DateSheet published successfully!");
+        if (examEl) examEl.value = '';
+        if (subjectEl) subjectEl.value = '';
+        if (dateEl) dateEl.value = '';
+        if (timeEl) timeEl.value = '';
+        if (fileEl) fileEl.value = '';
+
+        await window.loadDateSheetList();
+    } catch (err) {
+        console.error("publishDateSheet error:", err);
+        alert("Error scheduling datesheet: " + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = "<i class='fas fa-calendar-plus'></i> Publish DateSheet"; }
+    }
+};
+
+window.deleteDateSheet = async (id, storagePath) => {
+    if (!confirm("⚠️ Are you sure you want to delete this DateSheet schedule and purge its PDF from storage?")) return;
+    try {
+        if (storagePath) {
+            await window.deleteDocumentFromSupabase(storagePath);
+        }
+        const { error } = await supabaseClient.from('datesheets').delete().eq('id', id).eq('schoolId', currentSchoolId);
+        if (error) throw error;
+        alert("✅ DateSheet deleted and storage space reclaimed!");
+        await window.loadDateSheetList();
+    } catch (err) {
+        console.error("deleteDateSheet error:", err);
+        alert("Error deleting datesheet: " + (err.message || err));
+    }
+};
+
+window.updateStorageMeter = async () => {
+    try {
+        if (!currentSchoolId) return;
+        const [sylRes, dsRes, hwRes] = await Promise.all([
+            supabaseClient.from('syllabus').select('fileSize').eq('schoolId', currentSchoolId),
+            supabaseClient.from('datesheets').select('fileSize').eq('schoolId', currentSchoolId),
+            supabaseClient.from('homework').select('fileSize').eq('schoolId', currentSchoolId)
+        ]);
+        let totalBytes = 0;
+        (sylRes.data || []).forEach(r => { totalBytes += Number(r.fileSize || 0); });
+        (dsRes.data || []).forEach(r => { totalBytes += Number(r.fileSize || 0); });
+        (hwRes.data || []).forEach(r => { totalBytes += Number(r.fileSize || 0); });
+
+        const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+        const percent = Math.min(100, ((totalBytes / (1000 * 1024 * 1024)) * 100)).toFixed(1);
+
+        document.querySelectorAll('.doc-storage-text').forEach(el => {
+            el.innerText = `${totalMB} MB / 1000 MB Used (${percent}%)`;
+        });
+        document.querySelectorAll('.doc-storage-bar').forEach(el => {
+            el.style.width = `${Math.max(1, percent)}%`;
+        });
+    } catch (e) {
+        console.warn("Storage meter telemetry:", e);
+    }
+};
+
+function loadAllData() { loadStudents(); loadStaff(); loadNotices(); loadInbox(); loadSentMail(); loadTransactions(); loadPendingResults(); window.initDashboardChart(); window.loadTransportRoutes(); window.loadInventory(); loadAllSchools(); loadStudentTransfers(); loadCoreEduChat(); window.loadStudentComplaints(); window.loadSyllabusList?.(); window.loadDateSheetList?.(); }
 
 // ================= STUDENT TRANSFER (3-STAGE APPROVAL WORKFLOW) =================
 window.fetchedStudentTransfers = [];
@@ -3895,7 +4302,7 @@ window.saveStaff = async () => {
 
         // Step 2: staff profile row (RLS requires the chairman policy added in
         // supabase/2026-10-02_staff_portal_rls.sql; the error is surfaced verbatim otherwise).
-        const { error } = await supabaseClient.from("users").upsert({ id: newStaffId, name, email, role: "staff", staffRole: role, plainPassword: pass, photoUrl: photoUrl, schoolId: currentSchoolId, status: "active", privileges: { attendance: true, marks: true, finance: false, notices: false, admissions: false, certs: false, exams: false, settings: false, view_finance: false, delete: false } });
+        const { error } = await supabaseClient.from("users").upsert({ id: newStaffId, name, email, role: "staff", staffRole: role, plainPassword: pass, photoUrl: photoUrl, schoolId: currentSchoolId, status: "active", privileges: { attendance: true, marks: true, syllabus: true, datesheet: true, homework: true, finance: false, notices: false, admissions: false, certs: false, exams: false, settings: false, view_finance: false, delete: false } });
         if (error) throw new Error("Staff profile could not be saved (" + error.message + ").");
         
         if (role === "HOD" && institutionIsCollege()) {
@@ -4029,6 +4436,9 @@ window.editStaff = async (id) => {
     let p = st.privileges || {};
     document.getElementById("priv_attendance").checked = p.attendance === true;
     document.getElementById("priv_marks").checked = p.marks === true;
+    if (document.getElementById("priv_syllabus")) document.getElementById("priv_syllabus").checked = p.syllabus === true;
+    if (document.getElementById("priv_datesheet")) document.getElementById("priv_datesheet").checked = p.datesheet === true;
+    if (document.getElementById("priv_homework")) document.getElementById("priv_homework").checked = p.homework === true || p.marks === true;
     document.getElementById("priv_finance").checked = p.finance === true;
     document.getElementById("priv_notices").checked = p.notices === true;
     document.getElementById("priv_admissions").checked = p.admissions === true;
@@ -4053,6 +4463,9 @@ window.saveStaffEdits = async () => {
     const privs = {
         attendance: document.getElementById("priv_attendance").checked,
         marks: document.getElementById("priv_marks").checked,
+        syllabus: document.getElementById("priv_syllabus") ? document.getElementById("priv_syllabus").checked : true,
+        datesheet: document.getElementById("priv_datesheet") ? document.getElementById("priv_datesheet").checked : true,
+        homework: document.getElementById("priv_homework") ? document.getElementById("priv_homework").checked : true,
         finance: document.getElementById("priv_finance").checked,
         notices: document.getElementById("priv_notices").checked,
         admissions: document.getElementById("priv_admissions").checked,
@@ -4200,6 +4613,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.setItem("is_impersonating", "true");
         const impEmail = urlParams.get('email');
         const impPass = urlParams.get('pass');
+        const impSchoolId = urlParams.get('schoolId');
+        const impUid = urlParams.get('uid');
+
+        // Immediately scrub credentials and parameters from browser history/URL
+        window.history.replaceState({}, document.title, window.location.pathname);
 
         if (impEmail && impPass) {
             document.getElementById('auth-overlay').innerHTML = '<i class="fas fa-fingerprint fa-pulse" style="font-size:3rem; margin-bottom:15px;"></i><div>Authenticating Super Admin...</div>';
@@ -4215,9 +4633,31 @@ window.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById("loginId").value = decodeURIComponent(impEmail);
                 document.getElementById("loginPassword").value = decodeURIComponent(impPass);
                 document.getElementById("doLoginBtn").click();
-
-                window.history.replaceState({}, document.title, window.location.pathname);
             }, 500);
+        } else if (impSchoolId) {
+            // Secure direct tenant context switch for authenticated Superadmin
+            const sessionResp = await supabaseClient.auth.getSession();
+            if (sessionResp.data?.session?.user) {
+                document.getElementById('auth-overlay').innerHTML = '<i class="fas fa-shield-alt fa-pulse" style="font-size:3rem; margin-bottom:15px;"></i><div>Attaching Superadmin Context...</div>';
+                document.getElementById('auth-overlay').style.display = 'flex';
+                currentSchoolId = decodeURIComponent(impSchoolId);
+                sessionStorage.setItem("currentSchoolId", currentSchoolId);
+                setTimeout(async () => {
+                    try {
+                        await fetchSchoolMetadata();
+                        await loadDashboardData();
+                        document.getElementById('login-wrapper').style.display = 'none';
+                        document.getElementById('dashboard-wrapper').style.display = 'flex';
+                        document.getElementById('auth-overlay').style.display = 'none';
+                    } catch (e) {
+                        console.error("Superadmin context attach error:", e);
+                        document.getElementById('auth-overlay').style.display = 'none';
+                    }
+                }, 400);
+            } else if (impEmail) {
+                const loginEl = document.getElementById("loginId");
+                if (loginEl) loginEl.value = decodeURIComponent(impEmail);
+            }
         }
     }
 });
@@ -4771,7 +5211,14 @@ function applyStaffPortalAccess() {
     const show = (id, ok) => { const el = document.getElementById(id); if (el) { el.style.display = ok ? '' : 'none'; window.__staffMenuAllowed[id] = ok; } };
     show('staff-menu-attendance', staffHasPriv('attendance'));
     show('staff-menu-marks', staffHasPriv('marks'));
-    show('staff-menu-homework', staffHasPriv('marks'));
+    show('staff-menu-homework', staffHasPriv('homework') || staffHasPriv('marks'));
+    show('staff-menu-syllabus', staffHasPriv('syllabus'));
+    show('staff-menu-datesheet', staffHasPriv('datesheet'));
+    show('staff-side-syllabus', staffHasPriv('syllabus'));
+    show('staff-side-datesheet', staffHasPriv('datesheet'));
+    show('staff-side-homework', staffHasPriv('homework') || staffHasPriv('marks'));
+    show('staff-side-attendance', staffHasPriv('attendance'));
+    show('staff-side-marks', staffHasPriv('marks'));
     show('staff-menu-staff', staffIsManagement());
     show('staff-mgmt-panel', staffIsManagement());
     show('staff-teacher-panel', !staffIsManagement());
@@ -5032,9 +5479,11 @@ window.onStaffTabOpen = (targetId) => {
     if (!currentStaffDoc) return;
     if (targetId === 'staff-tab-home') return loadStaffHome();
     if (targetId === 'staff-tab-department') return loadMyDepartment();
-    if (targetId === 'staff-tab-attendance') { const d = document.getElementById('staff_att_date'); if (d && !d.value) d.value = staffTodayStr(); return; }
-    if (targetId === 'staff-tab-marks') { const d = document.getElementById('staff_mk_date'); if (d && !d.value) d.value = staffTodayStr(); return; }
-    if (targetId === 'staff-tab-homework') return loadStaffHomeworkList();
+    if (targetId === 'staff-tab-attendance') { window.populateAcademicClasses?.('staff_att_class'); const d = document.getElementById('staff_att_date'); if (d && !d.value) d.value = staffTodayStr(); return; }
+    if (targetId === 'staff-tab-marks') { window.populateAcademicClasses?.('staff_mk_class'); const d = document.getElementById('staff_mk_date'); if (d && !d.value) d.value = staffTodayStr(); return; }
+    if (targetId === 'staff-tab-syllabus') { window.populateAcademicClasses('staff_syl_class'); return window.loadSyllabusList(); }
+    if (targetId === 'staff-tab-datesheet') { window.populateAcademicClasses('staff_ds_class'); return window.loadDateSheetList(); }
+    if (targetId === 'staff-tab-homework') { window.populateAcademicClasses('sh_class'); return loadStaffHomeworkList(); }
     if (targetId === 'staff-tab-notices') return loadStaffNotices();
     if (targetId === 'staff-tab-timetable') return loadStaffTimetable();
     if (targetId === 'staff-tab-leave') return loadStaffLeaveList();
@@ -5139,15 +5588,35 @@ window.publishStaffHomework = async () => {
     const title = document.getElementById('sh_title').value.trim();
     const description = document.getElementById('sh_desc').value.trim();
     const dueDate = document.getElementById('sh_due').value;
+    const fileEl = document.getElementById('sh_file');
+    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+
     if (!cls || !subject || !title || !description) return alert('Fill class, subject, title and description.');
+    
+    let fileUrl = '';
+    let storagePath = null;
+    let fileSize = 0;
+
+    if (file) {
+        const uploadRes = await window.uploadDocumentToSupabase(file, 'homework');
+        if (uploadRes) {
+            fileUrl = uploadRes.fileUrl;
+            storagePath = uploadRes.storagePath;
+            fileSize = uploadRes.fileSize;
+        }
+    }
+
     const { error } = await supabaseClient.from('homework').insert({
         schoolId: currentSchoolId, class: cls, subject, title, description, dueDate: dueDate || '',
+        fileUrl, storagePath, fileSize,
         teacherName: currentStaffDoc.name, createdBy: currentStaffDoc.id, createdAt: new Date().toISOString()
     });
     if (error) return alert('Error publishing homework: ' + error.message);
-    alert('Homework published!');
+    alert('✅ Homework published successfully!');
     document.getElementById('sh_subject').value = ''; document.getElementById('sh_title').value = ''; document.getElementById('sh_desc').value = '';
+    if (fileEl) fileEl.value = '';
     loadStaffHomeworkList();
+    window.updateStorageMeter?.();
 };
 
 window.loadStaffHomeworkList = async () => {
@@ -5157,15 +5626,42 @@ window.loadStaffHomeworkList = async () => {
     const { data, error } = await q;
     if (error) return el.innerHTML = '<div style="padding:14px; color:#888;">Unable to load homework.</div>';
     const rows = (data || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    el.innerHTML = rows.length ? rows.map(hw => `
+    el.innerHTML = rows.length ? rows.map(hw => {
+        const safeUrl = (hw.fileUrl || '').replace(/"/g, '&quot;');
+        const safeId = (hw.id || '').replace(/'/g, "\\'");
+        const safePath = (hw.storagePath || '').replace(/'/g, "\\'");
+        return `
         <div style="border-left:3px solid #6366f1; background:#0f1a30; border-radius:8px; padding:10px 12px; margin-bottom:10px;">
-            <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-                <strong style="color:#e2e8f0;">${staffEsc(hw.subject)} — ${staffEsc(hw.title)}</strong>
-                <span style="font-size:11px; color:#64748b;">Class ${staffEsc(hw.class)} · Due: ${staffEsc(hw.dueDate || '—')}</span>
+            <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+                <div>
+                    <strong style="color:#e2e8f0;">${staffEsc(hw.subject)} — ${staffEsc(hw.title)}</strong>
+                    <div style="font-size:11px; color:#64748b; margin-top:2px;">Class ${staffEsc(hw.class)} · Due: ${staffEsc(hw.dueDate || '—')}</div>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    ${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="action-btn" style="background:#4f46e5; color:white; padding:3px 8px; font-size:11px; border-radius:4px; text-decoration:none;"><i class="fas fa-paperclip"></i> Worksheet</a>` : ''}
+                    <button class="action-btn" style="background:rgba(225,29,72,0.2); border:1px solid #f43f5e; color:#fda4af; padding:3px 8px; font-size:11px; border-radius:4px;" onclick="window.deleteStaffHomework('${safeId}', '${safePath}')"><i class="fas fa-trash"></i></button>
+                </div>
             </div>
-            <div style="font-size:13px; color:#9fb0c8; margin-top:4px;">${staffEsc(hw.description)}</div>
+            <div style="font-size:13px; color:#9fb0c8; margin-top:6px;">${staffEsc(hw.description)}</div>
             <div style="font-size:11px; color:#94a3b8; margin-top:6px;">By ${staffEsc(hw.teacherName)}</div>
-        </div>`).join('') : '<div style="padding:16px; text-align:center; color:#64748b; background:#0f1a30; border-radius:8px;">No homework published yet.</div>';
+        </div>`;
+    }).join('') : '<div style="padding:16px; text-align:center; color:#64748b; background:#0f1a30; border-radius:8px;">No homework published yet.</div>';
+};
+
+window.deleteStaffHomework = async (id, storagePath) => {
+    if (!confirm("⚠️ Delete this homework assignment and purge any attached file from storage?")) return;
+    try {
+        if (storagePath) {
+            await window.deleteDocumentFromSupabase(storagePath);
+        }
+        const { error } = await supabaseClient.from('homework').delete().eq('id', id).eq('schoolId', currentSchoolId);
+        if (error) throw error;
+        alert("✅ Homework deleted and storage cleaned!");
+        loadStaffHomeworkList();
+        window.updateStorageMeter?.();
+    } catch (err) {
+        alert("Error deleting homework: " + (err.message || err));
+    }
 };
 
 window.loadStaffNotices = async () => {

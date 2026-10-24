@@ -566,6 +566,7 @@ window.loadStudentHomework = async () => {
         
         let html = '';
         data.forEach(hw => {
+            const safeFileUrl = sanitizeUrl(hw.fileUrl);
             html += `<div class="p-4 border border-gray-200 rounded-xl bg-gray-50 flex flex-col gap-2">
                 <div class="flex justify-between items-start">
                     <span class="font-bold text-[#1E3A8A] text-lg">${sanitizeHtml(hw.subject || 'Subject')}</span>
@@ -573,7 +574,10 @@ window.loadStudentHomework = async () => {
                 </div>
                 <h4 class="font-semibold text-gray-800">${sanitizeHtml(hw.title || 'Untitled Homework')}</h4>
                 <p class="text-sm text-gray-600">${sanitizeHtml(hw.description || 'No description provided.')}</p>
-                <div class="text-xs text-gray-500 mt-2">Assigned by: ${sanitizeHtml(hw.teacherName || 'Teacher')}</div>
+                <div class="flex justify-between items-center mt-2 flex-wrap gap-2">
+                    <span class="text-xs text-gray-500">Assigned by: ${sanitizeHtml(hw.teacherName || 'Teacher')}</span>
+                    ${safeFileUrl !== '#' ? `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-semibold flex items-center gap-1 shadow hover:bg-indigo-700 transition"><i class="fas fa-paperclip"></i> View Worksheet</a>` : ''}
+                </div>
             </div>`;
         });
         document.getElementById('stu-homework-container').innerHTML = html;
@@ -698,12 +702,16 @@ window.loadStudentDateSheet = async () => {
         
         let html = '';
         data.forEach(ds => {
-            html += `<div class="p-4 border border-gray-200 rounded-xl flex justify-between items-center shadow-sm">
+            const safeFileUrl = sanitizeUrl(ds.fileUrl);
+            html += `<div class="p-4 border border-gray-200 rounded-xl flex justify-between items-center shadow-sm flex-wrap gap-2">
                 <div>
                     <h4 class="font-bold text-gray-800">${sanitizeHtml(ds.examName || 'Upcoming Exam')}</h4>
                     <p class="text-sm text-gray-500">Date: ${sanitizeHtml(ds.date || 'TBA')} | Time: ${sanitizeHtml(ds.time || 'TBA')}</p>
+                    <div class="font-bold text-[#1E3A8A] mt-1">${sanitizeHtml(ds.subject || 'All Subjects')}</div>
                 </div>
-                <div class="font-bold text-[#1E3A8A]">${sanitizeHtml(ds.subject || '')}</div>
+                <div>
+                    ${safeFileUrl !== '#' ? `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-emerald-600 text-white rounded font-semibold text-xs flex items-center gap-1.5 shadow hover:bg-emerald-700 transition"><i class="fas fa-file-pdf"></i> View Schedule</a>` : ''}
+                </div>
             </div>`;
         });
         document.getElementById('stu-datesheet-container').innerHTML = html;
@@ -891,9 +899,13 @@ window.loadStudentSyllabus = async () => {
         let html = '';
         data.forEach(s => {
             const safeFileUrl = sanitizeUrl(s.fileUrl);
-            html += `<div class="p-4 border border-gray-200 rounded-xl shadow-sm flex items-center justify-between">
-                <div><h4 class="font-bold text-gray-800">${sanitizeHtml(s.subject)}</h4><p class="text-xs text-gray-500">Class ${sanitizeHtml(s.class)}</p></div>
-                ${safeFileUrl !== '#' ? `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 bg-blue-600 text-white rounded font-semibold text-xs"><i class="fas fa-download"></i> View</a>` : ''}
+            const titleDisplay = s.title ? `${sanitizeHtml(s.subject)} — ${sanitizeHtml(s.title)}` : sanitizeHtml(s.subject);
+            html += `<div class="p-4 border border-gray-200 rounded-xl shadow-sm flex items-center justify-between flex-wrap gap-2">
+                <div>
+                    <h4 class="font-bold text-gray-800">${titleDisplay}</h4>
+                    <p class="text-xs text-gray-500">Class / Semester: ${sanitizeHtml(s.class || currentStudentUser.class)}</p>
+                </div>
+                ${safeFileUrl !== '#' ? `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-blue-600 text-white rounded font-semibold text-xs flex items-center gap-1.5 shadow hover:bg-blue-700 transition"><i class="fas fa-file-pdf"></i> View / Download</a>` : ''}
             </div>`;
         });
         document.getElementById('stu-syllabus-container').innerHTML = html;
