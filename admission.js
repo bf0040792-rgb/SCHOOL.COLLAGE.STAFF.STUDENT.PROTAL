@@ -119,29 +119,54 @@ async function uploadToCloudinary(file) {
         return null;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", "coreedu");
-    formData.append("cloud_name", "dffaw6gys");
-
+    // 1. Primary: Cloudinary (disgtvs6f / ml_default)
     try {
-        const res = await fetch("https://api.cloudinary.com/v1_1/dffaw6gys/image/upload", {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", "ml_default");
+        formData.append("cloud_name", "disgtvs6f");
+
+        const res = await fetch("https://api.cloudinary.com/v1_1/disgtvs6f/image/upload", {
             method: "POST",
             body: formData,
         });
         const data = await res.json();
-        return data.secure_url;
+        if (res.ok && data.secure_url) {
+            return data.secure_url;
+        }
+        console.warn("Cloudinary returned non-ok or missing url, attempting Supabase fallback:", data);
     } catch (err) {
-        console.error("Cloudinary error:", err);
-        return null;
+        console.warn("Cloudinary upload network error, trying Supabase fallback:", err);
     }
+
+    // 2. Secondary Fallback: Supabase Storage bucket 'school-documents'
+    try {
+        const cleanSchoolId = (currentSchoolId || 'global').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const filePath = `${cleanSchoolId}/student-photos/${Date.now()}_${safeName}`;
+        
+        const { data, error } = await supabaseClient.storage.from('school-documents').upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+        });
+        if (error) throw error;
+
+        const { data: pubData } = supabaseClient.storage.from('school-documents').getPublicUrl(filePath);
+        if (pubData && pubData.publicUrl) {
+            return pubData.publicUrl;
+        }
+    } catch (storageErr) {
+        console.error("Supabase storage upload fallback error:", storageErr);
+    }
+
+    return null;
 }
 
 async function loadCollegeStructure() {
     const classSelect = document.getElementById("student-class");
     if (!classSelect) return;
     try {
-        const semesters = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester"];
+        const semesters = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester", "7th Semester", "8th Semester"];
         let options = `<option value="">-- Select Semester --</option>`;
         semesters.forEach(s => options += `<option value="${s}">${s}</option>`);
         classSelect.innerHTML = options;
@@ -253,7 +278,7 @@ form.addEventListener("submit", async (e) => {
 
     } catch (error) {
         console.error("Submission error:", error);
-        alert("An error occurred while submitting your application. Please try again.");
+        alert(error.message || "An error occurred while submitting your application. Please try again.");
         
         // Reset button
         submitBtn.disabled = false;
