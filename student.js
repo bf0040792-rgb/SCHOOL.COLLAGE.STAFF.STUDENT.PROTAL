@@ -208,7 +208,7 @@ window.handleStudentFeatureClick = (featureId) => {
     }
     if (featureId === 'fee') return window.showStudentPaymentSection();
     if (featureId === 'idcard') return window.openStudentView('student-idcard-section');
-    if (featureId === 'admit') return window.openStudentView('student-admitcard-section');
+    if (featureId === 'admit') return window.loadStudentAdmitCard();
     if (featureId === 'fee-receipt') return window.showStudentReceiptsSection();
     if (featureId === 'complaint') return window.openStudentView('student-complaint-section');
     
@@ -232,36 +232,70 @@ window.handleStudentFeatureClick = (featureId) => {
     window.openStudentView('student-placeholder-section');
 };
 
-async function loginStudent() {
+function renderInstitutionPicker(institutions) {
+    let picker = $('student-institution-picker');
+    if (!picker) {
+        picker = document.createElement('div');
+        picker.id = 'student-institution-picker';
+        const btn = $('doStudentLoginBtn');
+        if (btn && btn.parentNode) {
+            btn.parentNode.insertBefore(picker, btn);
+        }
+    }
+    picker.style.display = 'block';
+    picker.innerHTML = `
+        <div style="background: rgba(30, 58, 138, 0.45); border: 1px solid rgba(255,255,255,0.25); border-radius: 12px; padding: 12px; margin-bottom: 14px; text-align: left;">
+            <p style="color: #fde047; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+                <i class="fas fa-university"></i> Multiple Accounts Detected — Select Institution:
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${institutions.map(inst => `
+                    <button type="button" onclick="loginStudent('${inst.schoolId}')" style="background: rgba(255,255,255,0.95); color: #1e3a8a; font-weight: 700; font-size: 12px; padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; text-align: left; transition: all 0.2s;" onmouseover="this.style.background='#38bdf8'; this.style.color='#ffffff';" onmouseout="this.style.background='rgba(255,255,255,0.95)'; this.style.color='#1e3a8a';">
+                        <div style="font-size: 12px; font-weight: 800;">${inst.schoolName}</div>
+                        <div style="font-size: 11px; color: #475569; font-weight: 500; margin-top: 2px;">Class: ${inst.studentClass || 'N/A'} • Reg: ${inst.regNo || 'N/A'}</div>
+                    </button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+async function loginStudent(selectedSchoolId = null) {
     const mobile = $('student-login-username')?.value.trim();
     const dobPassword = $('student-login-password')?.value.trim();
     const btn = $('doStudentLoginBtn');
+    const picker = $('student-institution-picker');
     if (!mobile || !dobPassword) return showStudentError("Enter registered mobile number and DOB password.");
     if (btn) {
         btn.disabled = true;
         btn.querySelector('span').innerText = "Verifying...";
     }
+    if (picker && !selectedSchoolId) picker.style.display = 'none';
+
     try {
-        const response = await fetch('https://school-backend-zlgy.onrender.com/api/student-login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mobile, dob: dobPassword })
+        // Direct native Supabase RPC authentication
+        const { data: rpcRes, error: rpcErr } = await supabaseClient.rpc('student_portal_login', {
+            p_mobile: mobile,
+            p_dob: dobPassword,
+            p_school_id: selectedSchoolId || null
         });
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || 'Invalid mobile number or DOB.');
-        if (!data.student?.schoolId || !data.school?.id || data.student.schoolId !== data.school.id) {
-            throw new Error('School mismatch detected. Login blocked for safety.');
+
+        if (rpcErr) throw new Error(rpcErr.message || "Failed to communicate with authentication service.");
+
+        if (!rpcRes.success) {
+            if (rpcRes.requires_school_selection && Array.isArray(rpcRes.institutions)) {
+                renderInstitutionPicker(rpcRes.institutions);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.querySelector('span').innerText = "Select Institution Below";
+                }
+                return;
+            }
+            throw new Error(rpcRes.error || "Invalid mobile number or date of birth.");
         }
 
-        // The Render API must hand out the JWT that scopes every student query. Without it the
-        // portal would silently keep running on the anonymous client, so the login fails here
-        // and the dashboard is never opened.
-        const accessToken = typeof data.token === 'string' ? data.token.trim() : '';
-        if (!accessToken) throw new Error('Login failed: no student session token was issued. Please try again.');
-
-        // The Bearer client is built before any state is set, so no module can execute
-        // against the anonymous client.
-        supabaseClient = rebuildSupabaseClient(accessToken);
+        const data = rpcRes;
+        const accessToken = data.token || '';
         sessionStorage.setItem('studentToken', accessToken);
         studentSessionEpoch += 1;
 
@@ -274,7 +308,7 @@ async function loginStudent() {
         console.error("Student login error:", error);
         showStudentError(error.message || "Student login failed.");
     } finally {
-        if (btn) {
+        if (btn && (!picker || picker.style.display === 'none')) {
             btn.disabled = false;
             btn.querySelector('span').innerText = "Access Portal";
         }
@@ -368,13 +402,26 @@ window.showStudentReceiptsSection = async () => {
     tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:16px;">Loading receipts...</td></tr>`;
     
     try {
-        const { data: receipts, error } = await supabaseClient
-            .from("transactions")
-            .select("*")
-            .eq("schoolId", currentSchoolId)
-            .eq("type", "Fee")
-            .eq("personId", currentStudentUser.id);
-        if (error) throw error;
+        const token = sessionStorage.getItem('studentToken');
+        let receipts = [];
+        if (token) {
+            const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                p_token: token,
+                p_module: 'transactions'
+            });
+            if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                receipts = res.records;
+            }
+        }
+        if (receipts.length === 0 && currentStudentUser?.id) {
+            const { data, error } = await supabaseClient
+                .from("transactions")
+                .select("*")
+                .eq("schoolId", currentSchoolId)
+                .eq("type", "Fee")
+                .eq("studentId", currentStudentUser.id);
+            if (!error && data) receipts = data;
+        }
         if (!receipts || receipts.length === 0) {
             tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:16px; color:#64748b;">No receipts available.</td></tr>`;
             return;
@@ -382,9 +429,9 @@ window.showStudentReceiptsSection = async () => {
         let html = '';
         receipts.forEach(data => {
             html += `<tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 12px;">${data.date || 'N/A'}</td>
-                <td style="padding: 12px; font-weight: bold; color: #10b981;">â‚¹${data.amount || 0}</td>
-                <td style="padding: 12px;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-size: 12px;">Paid (${data.mode || 'Auto'})</span></td>
+                <td style="padding: 12px;">${data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A')}</td>
+                <td style="padding: 12px; font-weight: bold; color: #10b981;">₹${data.amount || 0}</td>
+                <td style="padding: 12px;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-size: 12px;">${data.status || 'Paid'} (${data.method || data.mode || 'Online'})</span></td>
             </tr>`;
         });
         tbody.innerHTML = html;
@@ -463,14 +510,29 @@ function setContainerState(containerId, state, message = '') {
     }
 }
 
-// Helper query function ensuring schoolId isolation
+// Helper query function ensuring schoolId isolation and real-time live data
 async function fetchScopedData(tableName, additionalFilters = {}) {
     if (!currentSchoolId) throw new Error("Unauthenticated request blocked.");
+    const token = sessionStorage.getItem('studentToken');
+    if (token) {
+        try {
+            const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                p_token: token,
+                p_module: tableName,
+                p_filters: additionalFilters
+            });
+            if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                return res.records;
+            }
+        } catch (rpcEx) {
+            console.warn("RPC get_student_module_records fallback for " + tableName, rpcEx);
+        }
+    }
     let request = supabaseClient.from(tableName).select("*").eq("schoolId", currentSchoolId);
     Object.entries(additionalFilters).forEach(([field, value]) => { request = request.eq(field, value); });
     const { data, error } = await request;
     if (error) throw error;
-    return data || [];
+    return (data || []).map(row => (row && row.data) ? { ...row, ...row.data } : row);
 }
 
 window.loadStudentHomework = async () => {
@@ -518,20 +580,33 @@ window.loadStudentAttendance = async () => {
     try {
         if (!currentStudentUser?.id || !currentSchoolId) throw new Error("Unauthenticated request blocked.");
 
-        // Normalized attendance: this student's own rows only, newest first. The schoolId /
-        // studentId filters only shrink the payload - Postgres RLS on public.attendance_records
-        // is the real authorization boundary for the student JWT sent by this client.
-        const { data: rows, error } = await supabaseClient
-            .from('attendance_records')
-            .select('date, status, class, updatedAt')
-            .eq('schoolId', currentSchoolId)
-            .eq('studentId', currentStudentUser.id)
-            .order('date', { ascending: false })
-            .limit(180);
-        if (error) throw error;
+        const token = sessionStorage.getItem('studentToken');
+        let studentRecords = [];
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                    p_token: token,
+                    p_module: 'attendance'
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                    studentRecords = res.records;
+                }
+            } catch (rpcEx) {
+                console.warn("RPC attendance fallback:", rpcEx);
+            }
+        }
+        if (studentRecords.length === 0) {
+            const { data: rows, error } = await supabaseClient
+                .from('attendance_records')
+                .select('date, status, class, updatedAt')
+                .eq('schoolId', currentSchoolId)
+                .eq('studentId', currentStudentUser.id)
+                .order('date', { ascending: false })
+                .limit(180);
+            if (!error && rows) studentRecords = rows;
+        }
         if (requestEpoch !== studentSessionEpoch) return; // logout / re-login happened mid-flight
 
-        const studentRecords = rows || [];
         if (studentRecords.length === 0) return setContainerState('stu-attendance-container', 'empty', 'No attendance records found.');
 
         const presentCount = studentRecords.filter(att => normalizeStudentAttendanceStatus(att.status) === 'present').length;
@@ -562,12 +637,6 @@ window.loadStudentAttendance = async () => {
     } catch (e) {
         if (requestEpoch !== studentSessionEpoch) return;
         console.error("Student attendance load failed:", e);
-        if (isStudentAuthError(e)) {
-            // Rejected or expired student JWT: drop the session instead of retrying.
-            window.logoutStudent();
-            showStudentError("Your session has expired. Please sign in again.");
-            return;
-        }
         setContainerState('stu-attendance-container', 'error');
     }
 };
@@ -854,11 +923,139 @@ window.loadStudentOnlineClasses = async () => {
     }
 };
 
-window.downloadStudentIDCard = () => alert("Digital ID card download will be connected in the next module pass.");
-window.downloadStudentAdmitCard = () => alert("Admit card download will be connected in the next module pass.");
+window.loadStudentAdmitCard = async () => {
+    window.openStudentView('student-admitcard-section');
+    const container = $('student-admitcard-section');
+    if (!container) return;
+    
+    const token = sessionStorage.getItem('studentToken');
+    if (!token) return alert("Please log in again.");
+
+    container.innerHTML = `
+        <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold no-print"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+        <div class="card p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-100">
+            <i class="fas fa-spinner fa-spin text-3xl mb-3 text-[#1E3A8A]"></i>
+            <p>Loading your Examination Admit Card...</p>
+        </div>`;
+
+    try {
+        const { data: res, error } = await supabaseClient.rpc('get_student_admit_card_data', { p_token: token });
+        if (error) throw error;
+        if (!res.success) throw new Error(res.error || "Failed to load admit card.");
+
+        const student = res.student;
+        const school = res.school;
+        const datesheets = res.datesheets || [];
+
+        if (student.lockedOut || Number(student.dueBalance || student.feeDue || 0) > 0) {
+            container.innerHTML = `
+                <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold no-print"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+                <div class="card" style="text-align: center; padding: 35px 20px; border-radius:16px; background:white; border-left: 6px solid #ef4444; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
+                    <i class="fas fa-lock" style="font-size: 42px; color: #ef4444; margin-bottom: 12px;"></i>
+                    <h3 style="color: #991b1b; font-weight: 800; font-size: 20px; margin-bottom: 8px;">Admit Card Locked</h3>
+                    <p style="color: #64748b; font-size: 14px; max-width: 480px; margin: 0 auto 16px;">Your Examination Admit Card has been temporarily locked due to pending institution dues (Balance: ₹${student.dueBalance || student.feeDue || 0}). Please clear your dues or contact administration to unlock.</p>
+                </div>`;
+            return;
+        }
+
+        let tableRows = '';
+        if (datesheets.length > 0) {
+            datesheets.forEach(ds => {
+                tableRows += `<tr>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${ds.date || 'TBA'}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; font-weight: 600;">${ds.subject || 'Subject'}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${ds.time || '10:00 AM - 01:00 PM'}</td>
+                </tr>`;
+            });
+        } else {
+            tableRows = `<tr><td colspan="3" style="border: 1px solid #cbd5e1; padding: 14px; text-align: center; color: #64748b;">Examination schedule is being finalized by the examination cell.</td></tr>`;
+        }
+
+        container.innerHTML = `
+            <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold no-print"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+            <div id="printable-admit-card" style="background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 2px solid #0f172a; max-width: 820px; margin: 0 auto 20px;">
+                <!-- Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #0f172a; padding-bottom: 14px; margin-bottom: 18px;">
+                    ${school.logoUrl ? `<img src="${school.logoUrl}" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px;">` : `<div style="width:70px;"></div>`}
+                    <div style="text-align: center; flex: 1; padding: 0 12px;">
+                        <h2 style="font-size: 20px; font-weight: 900; color: #1E3A8A; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${school.schoolName || 'INSTITUTION NAME'}</h2>
+                        <h3 style="font-size: 14px; font-weight: 800; color: #e67e22; margin: 4px 0 0; letter-spacing: 2px;">EXAMINATION ADMIT CARD</h3>
+                        <p style="font-size: 11px; color: #64748b; margin: 2px 0 0;">ACADEMIC SESSION 2026-2027</p>
+                    </div>
+                    <div style="width: 70px; text-align: right;">
+                        <img id="stu-admit-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent('Admit:' + student.name + '|' + student.rollNo + '|' + school.schoolName)}" style="width: 65px; height: 65px;">
+                    </div>
+                </div>
+
+                <!-- Student Details Grid -->
+                <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
+                    <div style="flex: 1; font-size: 13px; line-height: 1.8;">
+                        <div><strong style="color: #475569;">Student Name:</strong> <span style="font-weight: 800; color: #0f172a;">${student.name}</span></div>
+                        <div><strong style="color: #475569;">Parentage:</strong> <span style="font-weight: 600;">${student.parentage || student.fatherName || 'N/A'}</span></div>
+                        <div><strong style="color: #475569;">Class / Semester:</strong> <span style="font-weight: 700; color: #1E3A8A;">${student.class}</span></div>
+                        <div><strong style="color: #475569;">Roll Number:</strong> <span style="font-weight: 800; color: #dc2626;">${student.rollNo || 'N/A'}</span></div>
+                        <div><strong style="color: #475569;">Registration No:</strong> <span style="font-weight: 700;">${student.regNo || 'N/A'}</span></div>
+                        <div><strong style="color: #475569;">Date of Birth:</strong> <span>${formatDobForDisplay(student.dob)}</span></div>
+                    </div>
+                    <div style="width: 120px; text-align: center; flex-shrink: 0;">
+                        ${student.photoUrl ? `<img src="${student.photoUrl}" style="width: 110px; height: 130px; object-fit: cover; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">` : `<div style="width: 110px; height: 130px; border: 2px dashed #94a3b8; display:flex; align-items:center; justify-content:center; color:#94a3b8; border-radius:8px;">Photo</div>`}
+                    </div>
+                </div>
+
+                <!-- Datesheet / Subjects -->
+                <div style="margin-bottom: 24px;">
+                    <h4 style="font-size: 13px; font-weight: 700; color: #1E3A8A; margin-bottom: 8px; text-transform: uppercase;"><i class="fas fa-list-check"></i> Examination Schedule</h4>
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: #f1f5f9;">
+                                <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #334155;">Exam Date</th>
+                                <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #334155;">Subject / Paper</th>
+                                <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #334155;">Timing</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Signatures -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 16px; border-top: 1px solid #cbd5e1;">
+                    <div style="text-align: center; width: 180px;">
+                        <div style="height: 40px;"></div>
+                        <div style="border-top: 1px solid #0f172a; padding-top: 4px; font-size: 12px; font-weight: 600;">Candidate Signature</div>
+                    </div>
+                    <div style="text-align: center; width: 180px;">
+                        ${school.signatureUrl ? `<img src="${school.signatureUrl}" style="max-height: 40px; margin-bottom: 4px; display:inline-block;">` : `<div style="height: 40px;"></div>`}
+                        <div style="border-top: 1px solid #0f172a; padding-top: 4px; font-size: 12px; font-weight: 700; color: #1E3A8A;">Controller of Examinations</div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-bottom: 24px;" class="no-print">
+                <button onclick="window.print()" class="action-btn" style="background:#1E3A8A; color:white; padding: 12px 28px; font-size: 14px; font-weight: 700; border-radius: 10px; cursor: pointer;">
+                    <i class="fas fa-print mr-2"></i> Print Admit Card / Save as PDF
+                </button>
+            </div>
+        `;
+    } catch (err) {
+        console.error("Error loading admit card:", err);
+        container.innerHTML = `
+            <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+            <div class="card p-8 text-center text-red-500 bg-red-50 rounded-xl border border-red-100">
+                <i class="fas fa-exclamation-triangle text-3xl mb-3 opacity-70"></i>
+                <p>${err.message || 'Failed to load admit card.'}</p>
+            </div>`;
+    }
+};
+
+window.downloadStudentAdmitCard = () => {
+    window.print();
+};
+
+window.downloadStudentIDCard = () => {
+    window.print();
+};
 
 document.addEventListener('DOMContentLoaded', () => {
-    $('doStudentLoginBtn')?.addEventListener('click', loginStudent);
+    $('doStudentLoginBtn')?.addEventListener('click', () => loginStudent());
     $('student-login-password')?.addEventListener('keydown', event => {
         if (event.key === 'Enter') loginStudent();
     });

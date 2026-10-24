@@ -5896,16 +5896,28 @@ function renderStudentModuleRows(rows, featureId) {
 async function fetchStudentModuleRecords(featureId) {
     const scope = studentScope();
     if (featureId === 'profile' || featureId === 'social-media') return [];
+
+    const token = sessionStorage.getItem('studentToken');
+    if (token) {
+        try {
+            const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                p_token: token,
+                p_module: featureId
+            });
+            if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                return res.records;
+            }
+        } catch (e) {
+            console.warn("RPC fetchStudentModuleRecords fallback:", e);
+        }
+    }
+
     if (featureId === 'datesheet') {
-        // The published routine lives on the school row: `examSchedule_<class>` first,
-        // with the shared `schedule` column kept as a fallback.
         const { data: schoolRow } = await studentSupabase().from('schools').select('*').eq('id', scope.schoolId).maybeSingle();
         const classSchedule = schoolRow ? schoolRow['examSchedule_' + scope.className] : null;
         const schedule = Array.isArray(classSchedule) ? classSchedule : (schoolRow?.schedule || []);
         return schedule.map(item => ({ ...item, schoolId: scope.schoolId }));
     }
-    // Existing admin schema stores marks in a student-keyed document. Read only that key,
-    // then verify the school through the authenticated student record already returned by login.
     if (featureId === 'result') {
         const { data, error } = await studentSupabase().from('student_marks').select('*').eq('id', scope.studentId).maybeSingle();
         if (error) throw error;
@@ -5913,12 +5925,8 @@ async function fetchStudentModuleRecords(featureId) {
         if (data.schoolId && data.schoolId !== scope.schoolId) return [];
         return [{ ...data, id: scope.studentId, schoolId: scope.schoolId }];
     }
-    // Normalized attendance: this student's own rows, newest first, straight from
-    // public.attendance_records. It runs on the dedicated student client, never on the
-    // chairman/staff client. The schoolId / studentId filters only shrink the payload -
-    // Postgres RLS on attendance_records is the real authorization boundary.
     if (featureId === 'attendance') {
-        const { data: rows, error } = await requireStudentPortalClient()
+        const { data: rows, error } = await studentSupabase()
             .from('attendance_records')
             .select('date, status, class, updatedAt')
             .eq('schoolId', scope.schoolId)
@@ -6094,10 +6102,39 @@ window.initAdmitCardUI = () => {
 
 // Student Login Handler
 const studentLoginBtn = document.getElementById("doStudentLoginBtn");
-if (studentLoginBtn) studentLoginBtn.addEventListener("click", async () => {
+function renderStudentInstitutionPicker(institutions) {
+    let picker = document.getElementById('student-institution-picker');
+    if (!picker) {
+        picker = document.createElement('div');
+        picker.id = 'student-institution-picker';
+        const btn = document.getElementById('doStudentLoginBtn');
+        if (btn && btn.parentNode) {
+            btn.parentNode.insertBefore(picker, btn);
+        }
+    }
+    picker.style.display = 'block';
+    picker.innerHTML = `
+        <div style="background: rgba(30, 58, 138, 0.45); border: 1px solid rgba(255,255,255,0.25); border-radius: 12px; padding: 12px; margin-bottom: 14px; text-align: left;">
+            <p style="color: #fde047; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+                <i class="fas fa-university"></i> Multiple Accounts Detected — Select Institution:
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${institutions.map(inst => `
+                    <button type="button" onclick="window.doStudentPortalLogin('${inst.schoolId}')" style="background: rgba(255,255,255,0.95); color: #1e3a8a; font-weight: 700; font-size: 12px; padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; text-align: left; transition: all 0.2s;" onmouseover="this.style.background='#38bdf8'; this.style.color='#ffffff';" onmouseout="this.style.background='rgba(255,255,255,0.95)'; this.style.color='#1e3a8a';">
+                        <div style="font-size: 12px; font-weight: 800;">${inst.schoolName}</div>
+                        <div style="font-size: 11px; color: #475569; font-weight: 500; margin-top: 2px;">Class: ${inst.studentClass || 'N/A'} • Reg: ${inst.regNo || 'N/A'}</div>
+                    </button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+window.doStudentPortalLogin = async (selectedSchoolId = null) => {
     const username = document.getElementById("student-login-username")?.value.trim();
     const password = document.getElementById("student-login-password")?.value.trim();
     const errBox = document.getElementById('loginErrorMsg');
+    const picker = document.getElementById('student-institution-picker');
 
     if (!username || !password) {
         if (errBox) {
@@ -6110,26 +6147,32 @@ if (studentLoginBtn) studentLoginBtn.addEventListener("click", async () => {
 
     const btn = document.getElementById("doStudentLoginBtn");
     if (btn) btn.querySelector('span').innerText = "Verifying...";
+    if (picker && !selectedSchoolId) picker.style.display = 'none';
 
     try {
-        const response = await fetch('https://school-backend-zlgy.onrender.com/api/student-login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mobile: username, dob: password })
+        const { data: rpcRes, error: rpcErr } = await supabaseClient.rpc('student_portal_login', {
+            p_mobile: username,
+            p_dob: password,
+            p_school_id: selectedSchoolId || null
         });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.error || "Invalid mobile number or DOB.");
-        if (!result.student?.schoolId || !result.school?.id || result.student.schoolId !== result.school.id) {
-            throw new Error("School mismatch detected. Login blocked for safety.");
+
+        if (rpcErr) throw new Error(rpcErr.message || "Failed to communicate with authentication service.");
+
+        if (!rpcRes.success) {
+            if (rpcRes.requires_school_selection && Array.isArray(rpcRes.institutions)) {
+                renderStudentInstitutionPicker(rpcRes.institutions);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.querySelector('span').innerText = "Select Institution Below";
+                }
+                return;
+            }
+            throw new Error(rpcRes.error || "Invalid mobile number or date of birth.");
         }
 
-        // The Render-issued JWT must exist before any student state is set: without it the
-        // merged portal would keep running on the chairman/staff client, so login fails here.
-        const accessToken = typeof result.token === 'string' ? result.token.trim() : '';
-        if (!accessToken) throw new Error("Login failed: no student session token was issued. Please try again.");
-
-        // Fresh dedicated client per login; the chairman/staff client is left untouched and
-        // the student token is never handed to GoTrue.
+        const result = rpcRes;
+        const accessToken = result.token || '';
+        sessionStorage.setItem('studentToken', accessToken);
         studentPortalClient = createStudentPortalClient(accessToken);
         studentSessionEpoch += 1;
 
@@ -6145,9 +6188,14 @@ if (studentLoginBtn) studentLoginBtn.addEventListener("click", async () => {
             errBox.style.display = 'block';
             setTimeout(() => errBox.style.display = 'none', 8000);
         }
+    } finally {
+        if (btn && (!picker || picker.style.display === 'none')) {
+            btn.querySelector('span').innerText = "Access Portal";
+        }
     }
-    if (btn) btn.querySelector('span').innerText = "Access Portal";
-});
+};
+
+if (studentLoginBtn) studentLoginBtn.addEventListener("click", () => window.doStudentPortalLogin());
 
 async function loadStudentDashboard() {
     overlay.style.display = "none";
