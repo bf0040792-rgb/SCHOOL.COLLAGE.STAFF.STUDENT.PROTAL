@@ -90,9 +90,9 @@ function showError(title, message) {
     container.style.display = "block";
     form.style.display = "none";
     msgBox.style.display = "block";
-    msgIcon.className = "fas fa-exclamation-circle error-icon";
+    msgIcon.className = "fas fa-exclamation-circle error";
     msgTitle.innerText = title;
-    msgTitle.className = "error-title";
+    msgTitle.className = "error";
     msgText.innerText = message;
 }
 
@@ -100,14 +100,25 @@ function showMessage(title, message, type="success") {
     container.style.display = "block";
     form.style.display = "none";
     msgBox.style.display = "block";
-    msgIcon.className = type === "success" ? "fas fa-check-circle success-icon" : "fas fa-exclamation-circle error-icon";
+    msgIcon.className = type === "success" ? "fas fa-check-circle success" : "fas fa-exclamation-circle error";
     msgTitle.innerText = title;
-    msgTitle.className = type === "success" ? "success-title" : "error-title";
+    msgTitle.className = type === "success" ? "success" : "error";
     msgText.innerText = message;
 }
 
 async function uploadToCloudinary(file) {
     if (!file) return null;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+        alert("Invalid file format. Only JPG, PNG, and WEBP images are allowed.");
+        return null;
+    }
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB limit
+    if (file.size > maxSizeBytes) {
+        alert("File size exceeds 5MB limit. Please upload a smaller image.");
+        return null;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", "coreedu");
@@ -213,8 +224,11 @@ form.addEventListener("submit", async (e) => {
         };
 
         const rpcName = currentInstitutionType === 'college' ? 'submit_admission_v2' : 'submit_admission';
+        if (departmentId) {
+            payload.departmentId = departmentId;
+        }
         if (collegeChoice) {
-            payload.departmentId = collegeChoice.departmentId;
+            payload.departmentId = collegeChoice.departmentId || departmentId;
             payload.programId = collegeChoice.programId;
         }
         const { data: result, error: rpcError } = await supabaseClient.rpc(rpcName, {

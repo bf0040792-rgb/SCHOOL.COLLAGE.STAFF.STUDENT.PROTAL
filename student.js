@@ -101,6 +101,25 @@ const studentFeatures = [
 
 function $(id) { return document.getElementById(id); }
 
+function sanitizeHtml(val) {
+    if (val === null || val === undefined) return '';
+    return String(val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
+function sanitizeUrl(url) {
+    if (!url) return '';
+    const clean = String(url).trim();
+    if (/^(https?:|\/|data:image\/)/i.test(clean)) {
+        return clean.replace(/"/g, '%22').replace(/'/g, '%27');
+    }
+    return '#';
+}
+
 function hydrateFeatureSettings(payload = {}) {
     const settings = JSON.parse(JSON.stringify(DEFAULT_FEATURE_SETTINGS));
     const source = payload.featureSettings || payload || {};
@@ -250,9 +269,9 @@ function renderInstitutionPicker(institutions) {
             </p>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 ${institutions.map(inst => `
-                    <button type="button" onclick="loginStudent('${inst.schoolId}')" style="background: rgba(255,255,255,0.95); color: #1e3a8a; font-weight: 700; font-size: 12px; padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; text-align: left; transition: all 0.2s;" onmouseover="this.style.background='#38bdf8'; this.style.color='#ffffff';" onmouseout="this.style.background='rgba(255,255,255,0.95)'; this.style.color='#1e3a8a';">
-                        <div style="font-size: 12px; font-weight: 800;">${inst.schoolName}</div>
-                        <div style="font-size: 11px; color: #475569; font-weight: 500; margin-top: 2px;">Class: ${inst.studentClass || 'N/A'} • Reg: ${inst.regNo || 'N/A'}</div>
+                    <button type="button" onclick="loginStudent('${sanitizeHtml(inst.schoolId)}')" style="background: rgba(255,255,255,0.95); color: #1e3a8a; font-weight: 700; font-size: 12px; padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; text-align: left; transition: all 0.2s;" onmouseover="this.style.background='#38bdf8'; this.style.color='#ffffff';" onmouseout="this.style.background='rgba(255,255,255,0.95)'; this.style.color='#1e3a8a';">
+                        <div style="font-size: 12px; font-weight: 800;">${sanitizeHtml(inst.schoolName)}</div>
+                        <div style="font-size: 11px; color: #475569; font-weight: 500; margin-top: 2px;">Class: ${sanitizeHtml(inst.studentClass || 'N/A')} • Reg: ${sanitizeHtml(inst.regNo || 'N/A')}</div>
                     </button>
                 `).join('')}
             </div>
@@ -429,9 +448,9 @@ window.showStudentReceiptsSection = async () => {
         let html = '';
         receipts.forEach(data => {
             html += `<tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 12px;">${data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A')}</td>
-                <td style="padding: 12px; font-weight: bold; color: #10b981;">₹${data.amount || 0}</td>
-                <td style="padding: 12px;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-size: 12px;">${data.status || 'Paid'} (${data.method || data.mode || 'Online'})</span></td>
+                <td style="padding: 12px;">${sanitizeHtml(data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A'))}</td>
+                <td style="padding: 12px; font-weight: bold; color: #10b981;">₹${sanitizeHtml(data.amount || 0)}</td>
+                <td style="padding: 12px;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-size: 12px;">${sanitizeHtml(data.status || 'Paid')} (${sanitizeHtml(data.method || data.mode || 'Online')})</span></td>
             </tr>`;
         });
         tbody.innerHTML = html;
@@ -443,24 +462,27 @@ window.showStudentReceiptsSection = async () => {
 
 window.submitStudentComplaint = async (event) => {
     event.preventDefault();
-    if (!currentStudentUser || !currentSchoolId) return alert("Please login again.");
+    const token = sessionStorage.getItem('studentToken');
+    if (!token) return alert("Please login again.");
     const target = $('complaint-target')?.value;
     const subject = $('complaint-subject')?.value.trim();
     const description = $('complaint-desc')?.value.trim();
     if (!target || !subject || !description) return alert("Please fill all complaint fields.");
-    const { error } = await supabaseClient.from("complaints").insert({
-        schoolId: currentSchoolId,
-        studentId: currentStudentUser.id,
-        studentName: currentStudentUser.name || "Student",
-        studentMobile: currentStudentUser.mobile || "",
-        target, subject, description,
-        timestamp: new Date().toISOString(),
-        status: "Pending"
-    });
-    if (error) throw error;
-    alert("Complaint submitted successfully.");
-    event.target.reset();
-    window.openStudentView('student-main-grid');
+    
+    try {
+        const { data: res, error } = await supabaseClient.rpc('submit_student_complaint', {
+            p_token: token,
+            p_target: target,
+            p_subject: subject,
+            p_description: description
+        });
+        if (error || !res?.success) throw new Error(error?.message || res?.error || "Failed to submit complaint.");
+        alert("Complaint submitted successfully.");
+        event.target.reset();
+        window.openStudentView('student-main-grid');
+    } catch (err) {
+        alert("Error submitting complaint: " + err.message);
+    }
 };
 
 window.logoutStudent = () => {
@@ -546,12 +568,12 @@ window.loadStudentHomework = async () => {
         data.forEach(hw => {
             html += `<div class="p-4 border border-gray-200 rounded-xl bg-gray-50 flex flex-col gap-2">
                 <div class="flex justify-between items-start">
-                    <span class="font-bold text-[#1E3A8A] text-lg">${hw.subject || 'Subject'}</span>
-                    <span class="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-1 rounded">Due: ${hw.dueDate || 'N/A'}</span>
+                    <span class="font-bold text-[#1E3A8A] text-lg">${sanitizeHtml(hw.subject || 'Subject')}</span>
+                    <span class="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-1 rounded">Due: ${sanitizeHtml(hw.dueDate || 'N/A')}</span>
                 </div>
-                <h4 class="font-semibold text-gray-800">${hw.title || 'Untitled Homework'}</h4>
-                <p class="text-sm text-gray-600">${hw.description || 'No description provided.'}</p>
-                <div class="text-xs text-gray-500 mt-2">Assigned by: ${hw.teacherName || 'Teacher'}</div>
+                <h4 class="font-semibold text-gray-800">${sanitizeHtml(hw.title || 'Untitled Homework')}</h4>
+                <p class="text-sm text-gray-600">${sanitizeHtml(hw.description || 'No description provided.')}</p>
+                <div class="text-xs text-gray-500 mt-2">Assigned by: ${sanitizeHtml(hw.teacherName || 'Teacher')}</div>
             </div>`;
         });
         document.getElementById('stu-homework-container').innerHTML = html;
@@ -652,12 +674,12 @@ window.loadStudentResult = async () => {
         data.forEach(res => {
             html += `<div class="p-4 border border-blue-100 rounded-xl bg-blue-50/30 flex justify-between items-center">
                 <div>
-                    <h4 class="font-bold text-blue-900">${res.examName || 'Exam'}</h4>
-                    <p class="text-sm text-slate-600">Subject: ${res.subject || 'All Subjects'}</p>
+                    <h4 class="font-bold text-blue-900">${sanitizeHtml(res.examName || 'Exam')}</h4>
+                    <p class="text-sm text-slate-600">Subject: ${sanitizeHtml(res.subject || 'All Subjects')}</p>
                 </div>
                 <div class="text-right">
-                    <div class="text-2xl font-black text-[#1E3A8A]">${res.marksObtained || 0}/${res.totalMarks || 100}</div>
-                    <div class="text-xs font-semibold text-green-600">Status: ${res.status || 'Published'}</div>
+                    <div class="text-2xl font-black text-[#1E3A8A]">${sanitizeHtml(res.marksObtained || 0)}/${sanitizeHtml(res.totalMarks || 100)}</div>
+                    <div class="text-xs font-semibold text-green-600">Status: ${sanitizeHtml(res.status || 'Published')}</div>
                 </div>
             </div>`;
         });
@@ -678,10 +700,10 @@ window.loadStudentDateSheet = async () => {
         data.forEach(ds => {
             html += `<div class="p-4 border border-gray-200 rounded-xl flex justify-between items-center shadow-sm">
                 <div>
-                    <h4 class="font-bold text-gray-800">${ds.examName || 'Upcoming Exam'}</h4>
-                    <p class="text-sm text-gray-500">Date: ${ds.date || 'TBA'} | Time: ${ds.time || 'TBA'}</p>
+                    <h4 class="font-bold text-gray-800">${sanitizeHtml(ds.examName || 'Upcoming Exam')}</h4>
+                    <p class="text-sm text-gray-500">Date: ${sanitizeHtml(ds.date || 'TBA')} | Time: ${sanitizeHtml(ds.time || 'TBA')}</p>
                 </div>
-                <div class="font-bold text-[#1E3A8A]">${ds.subject || ''}</div>
+                <div class="font-bold text-[#1E3A8A]">${sanitizeHtml(ds.subject || '')}</div>
             </div>`;
         });
         document.getElementById('stu-datesheet-container').innerHTML = html;
@@ -703,10 +725,10 @@ window.loadStudentNotifications = async () => {
         validNotices.forEach(n => {
             html += `<div class="p-4 border-l-4 border-[#1E3A8A] bg-gray-50 rounded-r-xl shadow-sm">
                 <div class="flex justify-between items-start mb-2">
-                    <h4 class="font-bold text-gray-800">${n.title || 'Notification'}</h4>
-                    <span class="text-xs text-gray-500">${n.date || new Date(n.createdAt?.toDate?.() || Date.now()).toLocaleDateString()}</span>
+                    <h4 class="font-bold text-gray-800">${sanitizeHtml(n.title || 'Notification')}</h4>
+                    <span class="text-xs text-gray-500">${sanitizeHtml(n.date || new Date(n.createdAt?.toDate?.() || Date.now()).toLocaleDateString())}</span>
                 </div>
-                <p class="text-sm text-gray-600 whitespace-pre-wrap">${n.body || n.description || ''}</p>
+                <p class="text-sm text-gray-600 whitespace-pre-wrap">${sanitizeHtml(n.body || n.description || '')}</p>
             </div>`;
         });
         document.getElementById('stu-notifications-container').innerHTML = html;
@@ -727,16 +749,16 @@ window.loadStudentTransport = async () => {
         
         const html = `<div class="p-6 bg-yellow-50 border border-yellow-200 rounded-2xl shadow-sm text-center">
             <i class="fas fa-bus text-4xl text-yellow-500 mb-3"></i>
-            <h4 class="font-bold text-yellow-800 text-xl mb-1">${route?.routeName || 'School Bus Route'}</h4>
-            <p class="text-sm text-yellow-700 mb-4">Vehicle Number: ${route?.vehicleNo || 'TBA'}</p>
+            <h4 class="font-bold text-yellow-800 text-xl mb-1">${sanitizeHtml(route?.routeName || 'School Bus Route')}</h4>
+            <p class="text-sm text-yellow-700 mb-4">Vehicle Number: ${sanitizeHtml(route?.vehicleNo || 'TBA')}</p>
             <div class="grid grid-cols-2 gap-4 text-left">
                 <div class="bg-white p-3 rounded-lg border border-yellow-100">
                     <div class="text-xs text-gray-500 font-semibold uppercase">Driver Name</div>
-                    <div class="font-bold text-gray-800">${route?.driverName || 'TBA'}</div>
+                    <div class="font-bold text-gray-800">${sanitizeHtml(route?.driverName || 'TBA')}</div>
                 </div>
                 <div class="bg-white p-3 rounded-lg border border-yellow-100">
                     <div class="text-xs text-gray-500 font-semibold uppercase">Driver Contact</div>
-                    <div class="font-bold text-gray-800">${route?.driverContact || 'TBA'}</div>
+                    <div class="font-bold text-gray-800">${sanitizeHtml(route?.driverContact || 'TBA')}</div>
                 </div>
             </div>
         </div>`;
@@ -758,10 +780,10 @@ window.loadStudentLeave = async () => {
             const statusColor = req.status === 'Approved' ? 'text-green-600 bg-green-100' : (req.status === 'Rejected' ? 'text-red-600 bg-red-100' : 'text-orange-600 bg-orange-100');
             html += `<div class="p-3 border border-gray-200 rounded-xl bg-white shadow-sm flex justify-between items-center">
                 <div>
-                    <div class="font-bold text-gray-800 text-sm">${req.startDate} to ${req.endDate}</div>
-                    <div class="text-xs text-gray-500 mt-1">${req.reason}</div>
+                    <div class="font-bold text-gray-800 text-sm">${sanitizeHtml(req.startDate)} to ${sanitizeHtml(req.endDate)}</div>
+                    <div class="text-xs text-gray-500 mt-1">${sanitizeHtml(req.reason)}</div>
                 </div>
-                <div class="px-3 py-1 rounded-full text-xs font-bold ${statusColor}">${req.status || 'Pending'}</div>
+                <div class="px-3 py-1 rounded-full text-xs font-bold ${statusColor}">${sanitizeHtml(req.status || 'Pending')}</div>
             </div>`;
         });
         document.getElementById('stu-leave-container').innerHTML = html;
@@ -772,26 +794,25 @@ window.loadStudentLeave = async () => {
 
 window.submitStudentLeave = async (e) => {
     e.preventDefault();
-    if (!currentStudentUser || !currentSchoolId) return alert("Session expired.");
+    const token = sessionStorage.getItem('studentToken');
+    if (!token) return alert("Session expired. Please login again.");
     const start = $('leave-start').value;
     const end = $('leave-end').value;
     const reason = $('leave-reason').value.trim();
     if (!start || !end || !reason) return alert("Fill all fields.");
     try {
-        const { error } = await supabaseClient.from("leave_requests").insert({
-            schoolId: currentSchoolId,
-            studentId: currentStudentUser.id,
-            studentName: currentStudentUser.name,
-            class: currentStudentUser.class,
-            startDate: start, endDate: end, reason,
-            status: "Pending", createdAt: new Date().toISOString()
+        const { data: res, error } = await supabaseClient.rpc('submit_student_leave', {
+            p_token: token,
+            p_start_date: start,
+            p_end_date: end,
+            p_reason: reason
         });
-        if (error) throw error;
+        if (error || !res?.success) throw new Error(error?.message || res?.error || "Failed to submit request.");
         alert("Leave request submitted successfully.");
         e.target.reset();
         loadStudentLeave();
     } catch (err) {
-        alert("Failed to submit request.");
+        alert("Error: " + err.message);
     }
 };
 
@@ -807,10 +828,10 @@ window.loadStudentGatepass = async () => {
             const statusColor = req.status === 'Approved' ? 'text-green-600 bg-green-100' : (req.status === 'Rejected' ? 'text-red-600 bg-red-100' : 'text-gray-600 bg-gray-100');
             html += `<div class="p-3 border border-gray-200 rounded-xl bg-white shadow-sm flex justify-between items-center">
                 <div>
-                    <div class="font-bold text-gray-800 text-sm">${new Date(req.dateTime).toLocaleString()}</div>
-                    <div class="text-xs text-gray-500 mt-1">Reason: ${req.reason}</div>
+                    <div class="font-bold text-gray-800 text-sm">${sanitizeHtml(new Date(req.dateTime).toLocaleString())}</div>
+                    <div class="text-xs text-gray-500 mt-1">Reason: ${sanitizeHtml(req.reason)}</div>
                 </div>
-                <div class="px-3 py-1 rounded-full text-xs font-bold ${statusColor}">${req.status || 'Pending'}</div>
+                <div class="px-3 py-1 rounded-full text-xs font-bold ${statusColor}">${sanitizeHtml(req.status || 'Pending')}</div>
             </div>`;
         });
         document.getElementById('stu-gatepass-container').innerHTML = html;
@@ -821,25 +842,23 @@ window.loadStudentGatepass = async () => {
 
 window.submitStudentGatepass = async (e) => {
     e.preventDefault();
-    if (!currentStudentUser || !currentSchoolId) return alert("Session expired.");
+    const token = sessionStorage.getItem('studentToken');
+    if (!token) return alert("Session expired. Please login again.");
     const time = $('gatepass-time').value;
     const reason = $('gatepass-reason').value.trim();
     if (!time || !reason) return alert("Fill all fields.");
     try {
-        const { error } = await supabaseClient.from("gate_passes").insert({
-            schoolId: currentSchoolId,
-            studentId: currentStudentUser.id,
-            studentName: currentStudentUser.name,
-            class: currentStudentUser.class,
-            dateTime: time, reason,
-            status: "Pending", createdAt: new Date().toISOString()
+        const { data: res, error } = await supabaseClient.rpc('submit_student_gatepass', {
+            p_token: token,
+            p_date_time: new Date(time).toISOString(),
+            p_reason: reason
         });
-        if (error) throw error;
+        if (error || !res?.success) throw new Error(error?.message || res?.error || "Failed to submit gate pass.");
         alert("Gate pass request submitted successfully.");
         e.target.reset();
         loadStudentGatepass();
     } catch (err) {
-        alert("Failed to submit gate pass.");
+        alert("Error: " + err.message);
     }
 };
 
@@ -852,9 +871,9 @@ window.loadStudentAssignments = async () => {
         let html = '';
         data.forEach(a => {
             html += `<div class="p-4 border border-purple-200 bg-purple-50 rounded-xl shadow-sm">
-                <div class="flex justify-between font-bold text-purple-900 mb-1"><span>${a.subject || 'Subject'}</span> <span class="text-xs bg-white px-2 py-1 rounded text-purple-700">Deadline: ${a.deadline || 'N/A'}</span></div>
-                <h4 class="font-semibold text-gray-800 text-sm">${a.title || 'Assignment'}</h4>
-                <p class="text-xs text-gray-600 mt-2">${a.description || 'No description provided.'}</p>
+                <div class="flex justify-between font-bold text-purple-900 mb-1"><span>${sanitizeHtml(a.subject || 'Subject')}</span> <span class="text-xs bg-white px-2 py-1 rounded text-purple-700">Deadline: ${sanitizeHtml(a.deadline || 'N/A')}</span></div>
+                <h4 class="font-semibold text-gray-800 text-sm">${sanitizeHtml(a.title || 'Assignment')}</h4>
+                <p class="text-xs text-gray-600 mt-2">${sanitizeHtml(a.description || 'No description provided.')}</p>
             </div>`;
         });
         document.getElementById('stu-assignment-container').innerHTML = html;
@@ -871,9 +890,10 @@ window.loadStudentSyllabus = async () => {
         if (data.length === 0) return setContainerState('stu-syllabus-container', 'empty', 'Syllabus not available yet.');
         let html = '';
         data.forEach(s => {
+            const safeFileUrl = sanitizeUrl(s.fileUrl);
             html += `<div class="p-4 border border-gray-200 rounded-xl shadow-sm flex items-center justify-between">
-                <div><h4 class="font-bold text-gray-800">${s.subject}</h4><p class="text-xs text-gray-500">Class ${s.class}</p></div>
-                ${s.fileUrl ? `<a href="${s.fileUrl}" target="_blank" class="px-3 py-1 bg-blue-600 text-white rounded font-semibold text-xs"><i class="fas fa-download"></i> View</a>` : ''}
+                <div><h4 class="font-bold text-gray-800">${sanitizeHtml(s.subject)}</h4><p class="text-xs text-gray-500">Class ${sanitizeHtml(s.class)}</p></div>
+                ${safeFileUrl !== '#' ? `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 bg-blue-600 text-white rounded font-semibold text-xs"><i class="fas fa-download"></i> View</a>` : ''}
             </div>`;
         });
         document.getElementById('stu-syllabus-container').innerHTML = html;
@@ -890,10 +910,11 @@ window.loadStudentStudyMaterial = async () => {
         if (data.length === 0) return setContainerState('stu-studymaterial-container', 'empty', 'No study materials available.');
         let html = '';
         data.forEach(s => {
+            const safeLink = sanitizeUrl(s.link);
             html += `<div class="p-4 border border-gray-200 rounded-xl shadow-sm">
-                <h4 class="font-bold text-gray-800">${s.title}</h4>
-                <p class="text-xs text-gray-500 mb-2">${s.subject || ''}</p>
-                ${s.link ? `<a href="${s.link}" target="_blank" class="text-blue-600 text-sm font-semibold underline">Open Material <i class="fas fa-external-link-alt ml-1"></i></a>` : ''}
+                <h4 class="font-bold text-gray-800">${sanitizeHtml(s.title)}</h4>
+                <p class="text-xs text-gray-500 mb-2">${sanitizeHtml(s.subject || '')}</p>
+                ${safeLink !== '#' ? `<a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="text-blue-600 text-sm font-semibold underline">Open Material <i class="fas fa-external-link-alt ml-1"></i></a>` : ''}
             </div>`;
         });
         document.getElementById('stu-studymaterial-container').innerHTML = html;
@@ -910,11 +931,12 @@ window.loadStudentOnlineClasses = async () => {
         if (data.length === 0) return setContainerState('stu-onlineclasses-container', 'empty', 'No online classes scheduled for today.');
         let html = '';
         data.forEach(c => {
+            const safeLink = sanitizeUrl(c.link);
             html += `<div class="p-4 border border-teal-200 bg-teal-50 rounded-xl shadow-sm text-center">
                 <i class="fas fa-video text-3xl text-teal-600 mb-2"></i>
-                <h4 class="font-bold text-teal-900">${c.subject || 'Live Class'}</h4>
-                <p class="text-sm text-teal-700 mb-3">Time: ${c.time || 'Scheduled'}</p>
-                ${c.link ? `<a href="${c.link}" target="_blank" class="inline-block px-4 py-2 bg-teal-600 text-white rounded-lg font-bold text-sm hover:bg-teal-700"><i class="fas fa-play mr-1"></i> Join Class</a>` : ''}
+                <h4 class="font-bold text-teal-900">${sanitizeHtml(c.subject || 'Live Class')}</h4>
+                <p class="text-sm text-teal-700 mb-3">Time: ${sanitizeHtml(c.time || 'Scheduled')}</p>
+                ${safeLink !== '#' ? `<a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="inline-block px-4 py-2 bg-teal-600 text-white rounded-lg font-bold text-sm hover:bg-teal-700"><i class="fas fa-play mr-1"></i> Join Class</a>` : ''}
             </div>`;
         });
         document.getElementById('stu-onlineclasses-container').innerHTML = html;
@@ -953,7 +975,7 @@ window.loadStudentAdmitCard = async () => {
                 <div class="card" style="text-align: center; padding: 35px 20px; border-radius:16px; background:white; border-left: 6px solid #ef4444; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
                     <i class="fas fa-lock" style="font-size: 42px; color: #ef4444; margin-bottom: 12px;"></i>
                     <h3 style="color: #991b1b; font-weight: 800; font-size: 20px; margin-bottom: 8px;">Admit Card Locked</h3>
-                    <p style="color: #64748b; font-size: 14px; max-width: 480px; margin: 0 auto 16px;">Your Examination Admit Card has been temporarily locked due to pending institution dues (Balance: ₹${student.dueBalance || student.feeDue || 0}). Please clear your dues or contact administration to unlock.</p>
+                    <p style="color: #64748b; font-size: 14px; max-width: 480px; margin: 0 auto 16px;">Your Examination Admit Card has been temporarily locked due to pending institution dues (Balance: ₹${sanitizeHtml(String(student.dueBalance || student.feeDue || 0))}). Please clear your dues or contact administration to unlock.</p>
                 </div>`;
             return;
         }
@@ -962,43 +984,47 @@ window.loadStudentAdmitCard = async () => {
         if (datesheets.length > 0) {
             datesheets.forEach(ds => {
                 tableRows += `<tr>
-                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${ds.date || 'TBA'}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; font-weight: 600;">${ds.subject || 'Subject'}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${ds.time || '10:00 AM - 01:00 PM'}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${sanitizeHtml(ds.date || 'TBA')}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; font-weight: 600;">${sanitizeHtml(ds.subject || 'Subject')}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${sanitizeHtml(ds.time || '10:00 AM - 01:00 PM')}</td>
                 </tr>`;
             });
         } else {
             tableRows = `<tr><td colspan="3" style="border: 1px solid #cbd5e1; padding: 14px; text-align: center; color: #64748b;">Examination schedule is being finalized by the examination cell.</td></tr>`;
         }
 
+        const safeLogo = sanitizeUrl(school.logoUrl);
+        const safePhoto = sanitizeUrl(student.photoUrl);
+        const safeSign = sanitizeUrl(school.signatureUrl);
+
         container.innerHTML = `
             <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold no-print"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
             <div id="printable-admit-card" style="background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 2px solid #0f172a; max-width: 820px; margin: 0 auto 20px;">
                 <!-- Header -->
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #0f172a; padding-bottom: 14px; margin-bottom: 18px;">
-                    ${school.logoUrl ? `<img src="${school.logoUrl}" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px;">` : `<div style="width:70px;"></div>`}
+                    ${safeLogo ? `<img src="${safeLogo}" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px;">` : `<div style="width:70px;"></div>`}
                     <div style="text-align: center; flex: 1; padding: 0 12px;">
-                        <h2 style="font-size: 20px; font-weight: 900; color: #1E3A8A; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${school.schoolName || 'INSTITUTION NAME'}</h2>
+                        <h2 style="font-size: 20px; font-weight: 900; color: #1E3A8A; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${sanitizeHtml(school.schoolName || 'INSTITUTION NAME')}</h2>
                         <h3 style="font-size: 14px; font-weight: 800; color: #e67e22; margin: 4px 0 0; letter-spacing: 2px;">EXAMINATION ADMIT CARD</h3>
                         <p style="font-size: 11px; color: #64748b; margin: 2px 0 0;">ACADEMIC SESSION 2026-2027</p>
                     </div>
                     <div style="width: 70px; text-align: right;">
-                        <img id="stu-admit-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent('Admit:' + student.name + '|' + student.rollNo + '|' + school.schoolName)}" style="width: 65px; height: 65px;">
+                        <img id="stu-admit-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent('Admit:' + (student.name || '') + '|' + (student.rollNo || '') + '|' + (school.schoolName || ''))}" style="width: 65px; height: 65px;">
                     </div>
                 </div>
 
                 <!-- Student Details Grid -->
                 <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
                     <div style="flex: 1; font-size: 13px; line-height: 1.8;">
-                        <div><strong style="color: #475569;">Student Name:</strong> <span style="font-weight: 800; color: #0f172a;">${student.name}</span></div>
-                        <div><strong style="color: #475569;">Parentage:</strong> <span style="font-weight: 600;">${student.parentage || student.fatherName || 'N/A'}</span></div>
-                        <div><strong style="color: #475569;">Class / Semester:</strong> <span style="font-weight: 700; color: #1E3A8A;">${student.class}</span></div>
-                        <div><strong style="color: #475569;">Roll Number:</strong> <span style="font-weight: 800; color: #dc2626;">${student.rollNo || 'N/A'}</span></div>
-                        <div><strong style="color: #475569;">Registration No:</strong> <span style="font-weight: 700;">${student.regNo || 'N/A'}</span></div>
-                        <div><strong style="color: #475569;">Date of Birth:</strong> <span>${formatDobForDisplay(student.dob)}</span></div>
+                        <div><strong style="color: #475569;">Student Name:</strong> <span style="font-weight: 800; color: #0f172a;">${sanitizeHtml(student.name || '')}</span></div>
+                        <div><strong style="color: #475569;">Parentage:</strong> <span style="font-weight: 600;">${sanitizeHtml(student.parentage || student.fatherName || 'N/A')}</span></div>
+                        <div><strong style="color: #475569;">Class / Semester:</strong> <span style="font-weight: 700; color: #1E3A8A;">${sanitizeHtml(student.class || '')}</span></div>
+                        <div><strong style="color: #475569;">Roll Number:</strong> <span style="font-weight: 800; color: #dc2626;">${sanitizeHtml(student.rollNo || 'N/A')}</span></div>
+                        <div><strong style="color: #475569;">Registration No:</strong> <span style="font-weight: 700;">${sanitizeHtml(student.regNo || 'N/A')}</span></div>
+                        <div><strong style="color: #475569;">Date of Birth:</strong> <span>${sanitizeHtml(formatDobForDisplay(student.dob))}</span></div>
                     </div>
                     <div style="width: 120px; text-align: center; flex-shrink: 0;">
-                        ${student.photoUrl ? `<img src="${student.photoUrl}" style="width: 110px; height: 130px; object-fit: cover; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">` : `<div style="width: 110px; height: 130px; border: 2px dashed #94a3b8; display:flex; align-items:center; justify-content:center; color:#94a3b8; border-radius:8px;">Photo</div>`}
+                        ${safePhoto ? `<img src="${safePhoto}" style="width: 110px; height: 130px; object-fit: cover; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">` : `<div style="width: 110px; height: 130px; border: 2px dashed #94a3b8; display:flex; align-items:center; justify-content:center; color:#94a3b8; border-radius:8px;">Photo</div>`}
                     </div>
                 </div>
 
@@ -1024,7 +1050,7 @@ window.loadStudentAdmitCard = async () => {
                         <div style="border-top: 1px solid #0f172a; padding-top: 4px; font-size: 12px; font-weight: 600;">Candidate Signature</div>
                     </div>
                     <div style="text-align: center; width: 180px;">
-                        ${school.signatureUrl ? `<img src="${school.signatureUrl}" style="max-height: 40px; margin-bottom: 4px; display:inline-block;">` : `<div style="height: 40px;"></div>`}
+                        ${safeSign ? `<img src="${safeSign}" style="max-height: 40px; margin-bottom: 4px; display:inline-block;">` : `<div style="height: 40px;"></div>`}
                         <div style="border-top: 1px solid #0f172a; padding-top: 4px; font-size: 12px; font-weight: 700; color: #1E3A8A;">Controller of Examinations</div>
                     </div>
                 </div>

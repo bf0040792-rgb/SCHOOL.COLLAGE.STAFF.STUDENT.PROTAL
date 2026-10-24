@@ -1391,26 +1391,12 @@ window.acceptIncomingTransfer = async (transferId) => {
     if (tr.status !== "Pending Target Accept") return alert("This transfer is not awaiting your acceptance.");
     if (!confirm(`Accept transfer of ${tr.studentName || "student"} from ${tr.fromSchoolName || "previous school"}?\n\nThe student will be officially moved to your school.`)) return;
     try {
-        const stages = tr.workflowStages || [];
-        stages.forEach(s => { if (s.stage === "Target School Acceptance") { s.done = true; s.at = new Date().toISOString(); } if (s.stage === "Completed") { s.done = true; s.at = new Date().toISOString(); } });
-        const { error: transferError } = await supabaseClient.from("student_transfers").update({
-            status: "Completed",
-            workflowStage: 4,
-            acceptedAt: new Date().toISOString(),
-            acceptedBy: currentUserId || "chairman",
-            workflowStages: stages
-        }).eq("id", transferId);
-        if (transferError) throw transferError;
-
-        const { error: studentError } = await supabaseClient.from("students").update({
-            schoolId: currentSchoolId,
-            previousSchoolId: tr.fromSchoolId,
-            previousSchoolName: tr.fromSchoolName,
-            transferStatus: "Completed",
-            transferredAt: new Date().toISOString(),
-            transferRecordId: transferId
-        }).eq("id", tr.studentId);
-        if (studentError) throw studentError;
+        const { data, error } = await supabaseClient.rpc('update_student_transfer', {
+            p_transfer_id: transferId,
+            p_action: 'ACCEPT',
+            p_actor_id: currentUserId || 'chairman'
+        });
+        if (error) throw error;
         alert("Transfer accepted. Student has been moved to your school.");
         loadStudents();
         loadStudentTransfers();
@@ -1426,22 +1412,13 @@ window.rejectIncomingTransfer = async (transferId) => {
     const rejectReason = prompt(`Reason for rejecting transfer of ${tr.studentName || "student"}:`);
     if (rejectReason === null) return;
     try {
-        const stages = tr.workflowStages || [];
-        stages.forEach(s => { if (s.stage === "Target School Acceptance") { s.done = true; s.at = new Date().toISOString(); s.rejected = true; } });
-        const { error: transferError } = await supabaseClient.from("student_transfers").update({
-            status: "Rejected",
-            rejectedAt: new Date().toISOString(),
-            rejectedBy: currentUserId || "chairman",
-            rejectReason: rejectReason || "Rejected by target school",
-            workflowStages: stages
-        }).eq("id", transferId);
-        if (transferError) throw transferError;
-
-        const { error: studentError } = await supabaseClient.from("students").update({
-            transferStatus: null,
-            pendingTransferTo: null
-        }).eq("id", tr.studentId);
-        if (studentError) throw studentError;
+        const { data, error } = await supabaseClient.rpc('update_student_transfer', {
+            p_transfer_id: transferId,
+            p_action: 'REJECT',
+            p_actor_id: currentUserId || 'chairman',
+            p_reason: rejectReason || "Rejected by target school"
+        });
+        if (error) throw error;
         alert("Transfer rejected. The student remains at the original school.");
         loadStudents();
         loadStudentTransfers();
@@ -2544,7 +2521,9 @@ window.resolveComplaint = async (complaintId) => {
     if (!c) return alert("Complaint not found.");
     if (!confirm(`Mark complaint "${c.subject || "this complaint"}" as Resolved?`)) return;
     try {
-        const { error } = await supabaseClient.from("complaints").update({ status: "Resolved", resolvedAt: new Date().toISOString(), resolvedBy: currentUserId || "chairman" }).eq("id", complaintId);
+        let q = supabaseClient.from("complaints").update({ status: "Resolved", resolvedAt: new Date().toISOString(), resolvedBy: currentUserId || "chairman" }).eq("id", complaintId);
+        if (currentSchoolId) q = q.eq("schoolId", currentSchoolId);
+        const { error } = await q;
         if (error) throw error;
         alert("Complaint marked as resolved.");
         window.loadStudentComplaints();
@@ -2560,7 +2539,9 @@ window.replyToComplaint = async (complaintId) => {
     const reply = prompt(`Reply to ${c.studentName || "student"} regarding "${c.subject || "complaint"}":`);
     if (!reply) return;
     try {
-        const { error } = await supabaseClient.from("complaints").update({ chairmanReply: reply, status: "In Progress", repliedAt: new Date().toISOString() }).eq("id", complaintId);
+        let q = supabaseClient.from("complaints").update({ chairmanReply: reply, status: "In Progress", repliedAt: new Date().toISOString() }).eq("id", complaintId);
+        if (currentSchoolId) q = q.eq("schoolId", currentSchoolId);
+        const { error } = await q;
         if (error) throw error;
         alert("Reply sent to student.");
         window.loadStudentComplaints();
@@ -3061,7 +3042,7 @@ function renderStudentsTable(className, searchTerm = null, statusFilter = null) 
             ${institutionIsCollege() ? `<button class="action-btn" style="background:#0d9488;color:white;" data-id="${safeId}" title="Academic Placement" onclick="window.openStudentPlacement(this.dataset.id)"><i class="fas fa-sitemap"></i></button>` : ''}${lockBtn}`;
 
         html += `<tr class="${locked ? 'locked-row' : ''}">
-            <td style="text-align:center;"><input type="checkbox" class="student-select-checkbox" data-id="${safeId}" onchange="window.toggleStudentSelection(this.dataset.id, this.checked)" ${window.selectedStudentIds.has(dt.id) ? 'checked' : ''}></td>
+            <td style="text-align:center;"><input type="checkbox" class="student-select-checkbox" data-id="${safeId}" value="${safeId}" onchange="window.toggleStudentSelection(this.dataset.id || this.value, this.checked)" ${window.selectedStudentIds.has(dt.id) ? 'checked' : ''}></td>
             <td><img src="${safePhoto}" class="img-circle"></td>
             <td><strong style="display:block; font-size:13px;">${safeName} ${locked ? '<i class="fas fa-lock" style="color:#e53e3e"></i>' : ''}</strong><small style="color:#7f8c8d;">${safeMobile === 'N/A' ? 'No Mobile' : safeMobile}</small></td>
             <td><span style="font-weight:bold; font-size:13px; color:#333;">${safeRollNo}</span></td>
@@ -3080,17 +3061,23 @@ function renderStudentsTable(className, searchTerm = null, statusFilter = null) 
 }
 
 window.toggleStudentSelection = (studentId, checked) => {
-    if (checked) window.selectedStudentIds.add(studentId);
-    else window.selectedStudentIds.delete(studentId);
+    if (studentId && studentId !== 'on') {
+        if (checked) window.selectedStudentIds.add(studentId);
+        else window.selectedStudentIds.delete(studentId);
+    }
     updateExportSelectionUI();
 };
 
 window.toggleSelectAllStudents = (checked) => {
     document.querySelectorAll('.student-select-checkbox').forEach(cb => {
         cb.checked = checked;
-        if (checked) window.selectedStudentIds.add(cb.value);
-        else window.selectedStudentIds.delete(cb.value);
+        const sid = cb.dataset.id || cb.value;
+        if (sid && sid !== 'on') {
+            if (checked) window.selectedStudentIds.add(sid);
+            else window.selectedStudentIds.delete(sid);
+        }
     });
+    updateExportSelectionUI();
 };
 
 // Dedicated A4 Student Records Export Center. This intentionally uses the same
@@ -3361,6 +3348,7 @@ window.saveStudentMarks = async () => {
     try {
         const { error } = await supabaseClient.from("student_marks").upsert({
             id: studentId,
+            schoolId: currentSchoolId,
             marks: marksData,
             totalMax,
             totalObt,
@@ -3951,7 +3939,7 @@ async function loadStaff() {
             html += `<tr>
                 <td><img src="${dt.photoUrl || 'https://via.placeholder.com/100'}" class="img-circle"></td>
                 <td><strong>${dt.name}</strong><br><small>${dt.staffRole}</small></td>
-                <td><small>${dt.email}</small><br><strong>${dt.plainPassword}</strong></td>
+                <td><small>${dt.email}</small><br><span style="font-size:11px; color:#64748b; letter-spacing:1px;">••••••••</span></td>
                 <td><span style="font-size:11px; background:#e2e8f0; padding:2px 5px; border-radius:4px;">${privStr.join(', ') || 'None'}</span></td>
                 <td style="color:${statusColor}; font-weight:bold;">${(dt.status || 'ACTIVE').toUpperCase()}</td>
                 <td>
@@ -3979,9 +3967,9 @@ window.downloadGlobalStaffCSV = async (evt = null) => {
         (schoolsRes?.data || []).forEach(school => {
             schoolMap[school.id] = school.name || school.schoolName || school.entityName || "";
         });
-        const rows = [["School ID", "School Name", "Name", "Role", "Email", "Password", "Status"]];
+        const rows = [["School ID", "School Name", "Name", "Role", "Email", "Status"]];
         (staffRes.data || []).forEach(s => {
-            rows.push([s.schoolId || '', s.schoolName || schoolMap[s.schoolId] || currentSchoolName || '', s.name || '', s.staffRole || '', s.email || '', s.plainPassword || '', s.status || 'active']);
+            rows.push([s.schoolId || '', s.schoolName || schoolMap[s.schoolId] || currentSchoolName || '', s.name || '', s.staffRole || '', s.email || '', s.status || 'active']);
         });
         if (rows.length === 1) {
             alert("No global staff records are currently available.");
@@ -4188,7 +4176,9 @@ window.toggleNotice = async (id, state) => { const { error } = await supabaseCli
 
 window.deleteRecordFromDb = async (tableName, id, callback) => {
     if (confirm("Are you sure you want to permanently delete this record?")) {
-        const { error } = await supabaseClient.from(tableName).delete().eq("id", id);
+        let q = supabaseClient.from(tableName).delete().eq("id", id);
+        if (currentSchoolId) q = q.eq("schoolId", currentSchoolId);
+        const { error } = await q;
         if (error) throw error;
         callback();
     }
@@ -4614,7 +4604,9 @@ window.saveBusRoute = async () => {
 window.deleteBusRoute = async (id) => {
     if (!confirm("Delete this route?")) return;
     try {
-        const { error } = await supabaseClient.from("bus_routes").delete().eq("id", id);
+        let q = supabaseClient.from("bus_routes").delete().eq("id", id);
+        if (currentSchoolId) q = q.eq("schoolId", currentSchoolId);
+        const { error } = await q;
         if (error) throw error;
         loadTransportRoutes();
     } catch (e) { alert("Error deleting route."); }
@@ -4661,7 +4653,9 @@ window.logAsset = async () => {
 window.deleteAsset = async (id) => {
     if (!confirm("Delete this asset?")) return;
     try {
-        const { error } = await supabaseClient.from("inventory").delete().eq("id", id);
+        let q = supabaseClient.from("inventory").delete().eq("id", id);
+        if (currentSchoolId) q = q.eq("schoolId", currentSchoolId);
+        const { error } = await q;
         if (error) throw error;
         loadInventory();
     } catch (e) { alert("Error deleting asset."); }
