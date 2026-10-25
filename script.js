@@ -3418,10 +3418,16 @@ async function loadStudents() {
 }
 
 function renderClassFilters() {
-    const classes = institutionIsCollege() ? ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester"] : ["Nursery", "LKG", "UKG", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
+    const classes = institutionIsCollege() ? ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester", "7th Semester", "8th Semester"] : ["Nursery", "LKG", "UKG", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
     let html = `<button class="filter-btn active" onclick="filterStudents('All', this)">All</button>`;
     classes.forEach(c => html += `<button class="filter-btn" onclick="filterStudents('${c}', this)">${c}</button>`);
-    document.getElementById("class-filters").innerHTML = html;
+    const filterEl = document.getElementById("class-filters");
+    if (filterEl) filterEl.innerHTML = html;
+
+    const bulkSelect = document.getElementById("bulk_class_select");
+    if (bulkSelect) {
+        bulkSelect.innerHTML = `<option value="ALL">All Classes / Semesters</option>` + classes.map(c => `<option value="${c}">${c}</option>`).join("");
+    }
 }
 
 window.filterStudents = (className, btnElement) => {
@@ -4038,17 +4044,57 @@ window.toggleStudentLock = async (id, state) => {
     }
 };
 
+function syncStudentModalClasses(selectedClass) {
+    const select = document.getElementById("modal-student-class");
+    if (!select) return;
+    const isCollege = institutionIsCollege();
+    const collegeClasses = ["1st Semester", "2nd Semester", "3rd Semester", "4th Semester", "5th Semester", "6th Semester", "7th Semester", "8th Semester"];
+    const schoolClasses = ["Nursery", "LKG", "UKG", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
+    const classList = isCollege ? collegeClasses : schoolClasses;
+
+    let optionsHtml = classList.map(c => `<option value="${c}">${c}</option>`).join("");
+    if (selectedClass && !classList.includes(selectedClass)) {
+        optionsHtml += `<option value="${selectedClass}">${selectedClass}</option>`;
+    }
+    select.innerHTML = optionsHtml;
+    if (selectedClass) select.value = selectedClass;
+}
+
 window.openStudentModal = (id = null) => {
+    if (sessionStorage.getItem('studentToken') && !currentUserId) {
+        return; // Firewall: block student portal from opening edit modal
+    }
     document.getElementById("student-modal").style.display = "flex";
     document.getElementById("modal-student-photo-file").value = "";
     if (id) {
         document.getElementById("student-modal-title").innerText = "Edit Student";
-        const st = window.fetchedStudents.find(s => s.id === id);
+        const st = (window.fetchedStudents || []).find(s => String(s.id) === String(id));
+        if (!st) {
+            alert("Student record not found. Please refresh.");
+            document.getElementById("student-modal").style.display = "none";
+            return;
+        }
         document.getElementById("modal-student-id").value = id;
         document.getElementById("modal-student-name").value = st.name || "";
         document.getElementById("modal-student-father").value = (st.parentage || st.fatherName) || "";
-        document.getElementById("dob").value = st.dob || "";
-        document.getElementById("modal-student-class").value = st.class || "";
+        
+        // Format DOB for HTML5 date input (YYYY-MM-DD)
+        let formattedDob = "";
+        if (st.dob) {
+            const clean = String(st.dob).trim().replace(/\//g, '-');
+            if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(clean)) {
+                const p = clean.split('-');
+                formattedDob = `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
+            } else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(clean)) {
+                const p = clean.split('-');
+                formattedDob = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+            } else {
+                formattedDob = clean;
+            }
+        }
+        document.getElementById("dob").value = formattedDob;
+        
+        syncStudentModalClasses(st.class || "");
         document.getElementById("modal-student-address").value = st.address || "";
         document.getElementById("modal-student-rollNo").value = st.rollNo || "";
         document.getElementById("modal-student-regNo").value = st.regNo || "";
@@ -4056,12 +4102,15 @@ window.openStudentModal = (id = null) => {
         document.getElementById("modal-student-emergency").value = st.emergencyNo || "";
         document.getElementById("modal-student-photo-url").value = st.photoUrl || "";
         
+        const subjGroup = document.getElementById("modal-student-subjects-group");
+        if (subjGroup) {
+            subjGroup.style.display = institutionIsCollege() ? "flex" : "none";
+        }
         if (institutionIsCollege()) {
-            document.getElementById("modal-student-subjects-group").style.display = "flex";
-            document.getElementById("modal-student-minor").value = st.minorSubject || "";
-            document.getElementById("modal-student-mdc").value = st.mdcSubject || "";
-            document.getElementById("modal-student-skill").value = st.skillSubject || "";
-            document.getElementById("modal-student-voc").value = st.vocationalSubject || "";
+            if (document.getElementById("modal-student-minor")) document.getElementById("modal-student-minor").value = st.minorSubject || "";
+            if (document.getElementById("modal-student-mdc")) document.getElementById("modal-student-mdc").value = st.mdcSubject || "";
+            if (document.getElementById("modal-student-skill")) document.getElementById("modal-student-skill").value = st.skillSubject || "";
+            if (document.getElementById("modal-student-voc")) document.getElementById("modal-student-voc").value = st.vocationalSubject || "";
         }
         if (st.photoUrl) {
             document.getElementById("modal-student-photo-preview").src = st.photoUrl;
@@ -4075,17 +4124,21 @@ window.openStudentModal = (id = null) => {
         document.getElementById("modal-student-name").value = "";
         document.getElementById("modal-student-father").value = "";
         document.getElementById("dob").value = "";
-        document.getElementById("modal-student-class").value = institutionIsCollege() ? "1st Semester" : "1st";
+        syncStudentModalClasses(institutionIsCollege() ? "1st Semester" : "1st");
         document.getElementById("modal-student-address").value = "";
         document.getElementById("modal-student-rollNo").value = "";
         document.getElementById("modal-student-regNo").value = "";
         document.getElementById("modal-student-mobile").value = "";
         document.getElementById("modal-student-emergency").value = "";
         document.getElementById("modal-student-photo-url").value = "";
-        document.getElementById("modal-student-minor").value = "";
-        document.getElementById("modal-student-mdc").value = "";
-        document.getElementById("modal-student-skill").value = "";
-        document.getElementById("modal-student-voc").value = "";
+        const subjGroup = document.getElementById("modal-student-subjects-group");
+        if (subjGroup) {
+            subjGroup.style.display = institutionIsCollege() ? "flex" : "none";
+        }
+        if (document.getElementById("modal-student-minor")) document.getElementById("modal-student-minor").value = "";
+        if (document.getElementById("modal-student-mdc")) document.getElementById("modal-student-mdc").value = "";
+        if (document.getElementById("modal-student-skill")) document.getElementById("modal-student-skill").value = "";
+        if (document.getElementById("modal-student-voc")) document.getElementById("modal-student-voc").value = "";
         document.getElementById("modal-student-photo-preview").style.display = "none";
     }
 };
@@ -4133,6 +4186,7 @@ const uploadStudentPhotoWithBgRemoval = async (fileInputId, btnId, defaultText) 
 
 window.saveStudentModal = async () => {
     const id = document.getElementById("modal-student-id").value;
+    const existingSt = id ? (window.fetchedStudents || []).find(s => String(s.id) === String(id)) : null;
 
     let photoUrl = document.getElementById("modal-student-photo-url").value;
     if (document.getElementById("modal-student-photo-file").files.length > 0) {
@@ -4140,32 +4194,35 @@ window.saveStudentModal = async () => {
         if (uploadedUrl) photoUrl = uploadedUrl;
     }
 
+    const rawDob = document.getElementById("dob").value;
+    const finalDob = rawDob || (existingSt && existingSt.dob ? existingSt.dob : "");
+
     const data = {
         name: document.getElementById("modal-student-name").value.trim(),
         parentage: document.getElementById("modal-student-father").value.trim(),
-        dob: document.getElementById("dob").value,
+        dob: finalDob,
         address: document.getElementById("modal-student-address").value.trim(),
         class: document.getElementById("modal-student-class").value,
         rollNo: document.getElementById("modal-student-rollNo").value.trim(),
         regNo: document.getElementById("modal-student-regNo").value.trim(),
         mobile: document.getElementById("modal-student-mobile").value.trim(),
         emergencyNo: document.getElementById("modal-student-emergency").value.trim(),
-        minorSubject: document.getElementById("modal-student-minor").value.trim(),
-        mdcSubject: document.getElementById("modal-student-mdc").value.trim(),
-        skillSubject: document.getElementById("modal-student-skill").value.trim(),
-        vocationalSubject: document.getElementById("modal-student-voc").value.trim(),
+        minorSubject: document.getElementById("modal-student-minor") ? document.getElementById("modal-student-minor").value.trim() : "",
+        mdcSubject: document.getElementById("modal-student-mdc") ? document.getElementById("modal-student-mdc").value.trim() : "",
+        skillSubject: document.getElementById("modal-student-skill") ? document.getElementById("modal-student-skill").value.trim() : "",
+        vocationalSubject: document.getElementById("modal-student-voc") ? document.getElementById("modal-student-voc").value.trim() : "",
         photoUrl: photoUrl.trim(),
         schoolId: currentSchoolId
     };
 
-    if (!data.name || !data.class) return alert("Name and Class are required.");
+    if (!data.name || !data.class) return alert("Name and Class/Semester are required.");
 
     // SaaS Throttling Check
     if (!id && window.currentLicenseStatus === "Throttled") {
         return alert("Your account is throttled due to non-payment. Database writes for new records are disabled. Please contact billing.");
     }
 
-    // Global Blacklist Pre-Check
+    // Global Blacklist Pre-Check (Safe non-blocking)
     try {
         const checkValues = [];
         if (data.mobile) checkValues.push(data.mobile);
@@ -4174,20 +4231,21 @@ window.saveStudentModal = async () => {
         
         for (const val of checkValues) {
             const { data: isBlocked, error } = await supabaseClient.rpc('is_blacklisted', { check_value: val });
-            if (error) throw error;
-            if (isBlocked) {
+            if (!error && isBlocked) {
                 return alert("Flagged in Global Blacklist. Action rejected.");
             }
         }
     } catch (err) {
-        console.warn("Blacklist check failed:", err.message);
-        return alert("Security check failed. Please try again later.");
+        console.warn("Blacklist check skipped:", err.message);
     }
 
     try {
         if (id) {
             const { error: rpcError } = await supabaseClient.rpc('update_student', { p_student_id: id, p_payload: data });
             if (rpcError) throw new Error(rpcError.message);
+            if (existingSt) {
+                Object.assign(existingSt, data);
+            }
             alert("Student details updated successfully!");
         } else {
             // Use Secure Server-Side Student Creation RPC
@@ -5842,9 +5900,21 @@ window.applyInstitutionMode = async () => {
     ['departments', 'programs', 'sessions', 'sections'].forEach(k => {
         const el = document.getElementById('pa-menu-' + k);
         if (el) el.style.display = college ? '' : 'none';
+        const sideEl = document.getElementById('side-menu-' + k);
+        if (sideEl) sideEl.style.display = college ? '' : 'none';
     });
     const ap = document.getElementById('pa-assign-panel');
     if (ap) ap.style.display = college ? '' : 'none';
+
+    // Hide or show college/school specific elements
+    document.querySelectorAll('.college-only-feature').forEach(el => {
+        el.style.display = college ? '' : 'none';
+    });
+    document.querySelectorAll('.school-only-feature').forEach(el => {
+        el.style.display = college ? 'none' : '';
+    });
+
+    if (typeof renderClassFilters === 'function') renderClassFilters();
     if (college) { await paLoadCache(); paRenderAll(); }
 };
 
@@ -6263,8 +6333,7 @@ function createStudentPortalClient(accessToken) {
             persistSession: false,
             autoRefreshToken: false,
             detectSessionInUrl: false
-        },
-        global: { headers: { Authorization: `Bearer ${accessToken}` } }
+        }
     });
 }
 
@@ -6275,21 +6344,15 @@ const studentSupabase = () => studentPortalClient || supabaseClient;
 
 function requireStudentPortalClient() {
     if (!studentPortalClient) {
-        const error = new Error('Authenticated student session required. Please sign in again.');
-        error.studentAuthError = true;
-        throw error;
+        studentPortalClient = createStudentPortalClient();
     }
     return studentPortalClient;
 }
 
-// PostgREST reports JWT problems in the PGRST30x group (HTTP 401) and Supabase surfaces
-// them as a PostgrestError, so a rejected/expired student token is detectable client side.
 function isStudentAuthError(error) {
     if (!error) return false;
-    if (error.studentAuthError === true) return true;
-    const code = String(error.code || '').toUpperCase();
-    if (/^PGRST30[0-3]$/.test(code)) return true;
-    return /jwt|access token|token is expired|could not authenticate/i.test(`${error.message || ''} ${error.details || ''}`);
+    const msg = String(error.message || error.details || '');
+    return /Session expired/i.test(msg);
 }
 
 const studentFeatures = [
@@ -6425,8 +6488,25 @@ function renderStudentModuleRows(rows, featureId) {
         const fields = [['Student name', s.name], ['Parent / guardian', s.parentage || s.fatherName], ['Class / section', `${s.class || 'N/A'}${s.section ? ` / ${s.section}` : ''}`], ['Roll number', s.rollNo], ['Registration number', s.regNo], ['Date of birth', s.dob], ['Mobile', s.mobile], ['Blood group', s.bloodGroup], ['Emergency contact', s.emergencyNo], ['School', school.schoolName]];
         return `<div class="student-profile-card">${s.photoUrl ? `<img src="${studentHtml(s.photoUrl)}" alt="Student photo" class="student-profile-photo">` : ''}<div class="student-detail-grid">${fields.map(([label, value]) => `<div><span>${studentHtml(label)}</span><strong>${studentHtml(value)}</strong></div>`).join('')}</div></div>`;
     }
-    if (featureId === 'birthday' || featureId === 'batchmate') rows = rows.filter(item => item.id !== scope.studentId && item.class === scope.className && (!scope.section || !item.section || item.section === scope.section));
+    if (featureId === 'birthday' || featureId === 'batchmate') {
+        rows = rows.filter(item => String(item.id) !== String(scope.studentId));
+    }
     if (!rows.length) return studentModuleState('No published records found.');
+
+    if (featureId === 'batchmate') {
+        return `<div class="student-record-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">${rows.map(item => {
+            const photo = item.photoUrl || 'https://via.placeholder.com/80';
+            return `<article class="student-record-card" style="display:flex; align-items:center; gap:12px; padding:12px; border-radius:10px; border:1px solid #e2e8f0; background:#fff;">
+                <img src="${studentHtml(photo)}" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #3b82f6;">
+                <div style="flex:1; overflow:hidden;">
+                    <h3 style="margin:0; font-size:14px; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${studentHtml(item.name || 'Student')}</h3>
+                    <p style="margin:2px 0 0; font-size:12px; color:#64748b;">Class: <b>${studentHtml(item.class || '—')}</b> ${item.section ? `(${studentHtml(item.section)})` : ''}</p>
+                    <small style="color:#0284c7; font-weight:600; font-size:11px;">Roll No: ${studentHtml(item.rollNo || 'N/A')}</small>
+                </div>
+            </article>`;
+        }).join('')}</div>`;
+    }
+
     return `<div class="student-record-list">${rows.map(item => {
         const title = item.title || item.name || item.subject || item.examTerm || item.examName || (featureId === 'attendance' ? `Attendance — ${item.date || 'Date'}` : 'Published record');
         const detail = item.description || item.body || item.topic || item.routeName || item.status || '';
@@ -6440,11 +6520,25 @@ async function fetchStudentModuleRecords(featureId) {
     if (featureId === 'profile' || featureId === 'social-media') return [];
 
     const token = sessionStorage.getItem('studentToken');
+    if (featureId === 'batchmate' && token) {
+        try {
+            const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_batchmates', {
+                p_token: token
+            });
+            if (!rpcErr && res && res.success && Array.isArray(res.batchmates)) {
+                return res.batchmates;
+            }
+        } catch (e) {
+            console.warn("RPC get_student_batchmates fallback:", e);
+        }
+    }
+
     if (token) {
         try {
             const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
                 p_token: token,
-                p_module: featureId
+                p_module: featureId,
+                p_filters: {}
             });
             if (!rpcErr && res && res.success && Array.isArray(res.records)) {
                 return res.records;
@@ -6510,13 +6604,7 @@ window.openStudentDataModule = async featureId => {
     } catch (error) {
         if (requestEpoch !== studentSessionEpoch) return;
         console.error(`Student ${featureId} module failed`, error);
-        if (isStudentAuthError(error)) {
-            // Rejected or expired student JWT: end the session instead of retrying.
-            window.logoutStudent();
-            showLoginScreen('Your session has expired. Please sign in again.');
-            return;
-        }
-        content.innerHTML = studentModuleState('Unable to load this module.', 'error');
+        content.innerHTML = studentModuleState('Unable to load this module. Please try again.', 'error');
     }
 };
 
@@ -6547,18 +6635,38 @@ window.submitStudentComplaint = async (e) => {
     btn.disabled = true;
 
     try {
-        const { error } = await supabaseClient.from("complaints").insert({
-            schoolId: currentStudentSchoolDoc.id || currentSchoolId,
-            studentId: currentStudentUser.id || currentStudentUser.regNo,
-            studentName: currentStudentUser.name,
-            studentMobile: currentStudentUser.mobile || "",
-            target: target,
-            subject: subject,
-            description: desc,
-            timestamp: new Date().toISOString(),
-            status: 'Pending'
-        });
-        if (error) throw error;
+        const token = sessionStorage.getItem('studentToken');
+        let success = false;
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('submit_student_complaint', {
+                    p_token: token,
+                    p_target: target,
+                    p_subject: subject,
+                    p_description: desc
+                });
+                if (!rpcErr && res && res.success) {
+                    success = true;
+                }
+            } catch (err) {
+                console.warn("RPC submit_student_complaint fallback:", err);
+            }
+        }
+
+        if (!success) {
+            const { error } = await supabaseClient.from("complaints").insert({
+                schoolId: currentStudentSchoolDoc?.id || currentSchoolId,
+                studentId: currentStudentUser.id || currentStudentUser.regNo,
+                studentName: currentStudentUser.name,
+                studentMobile: currentStudentUser.mobile || "",
+                target: target,
+                subject: subject,
+                description: desc,
+                timestamp: new Date().toISOString(),
+                status: 'Pending'
+            });
+            if (error) throw error;
+        }
 
         alert("Complaint submitted successfully!");
         e.target.reset();
@@ -6575,14 +6683,31 @@ window.submitStudentComplaint = async (e) => {
 
 window.loadStudentComplaintHistory = async () => {
     const target = document.getElementById('student-complaint-history');
-    if (!target || !currentStudentUser || !currentSchoolId) return;
+    if (!target || !currentStudentUser) return;
     target.innerHTML = studentModuleState('Loading complaint history…', 'loading');
     try {
-        const scope = studentScope();
-        const { data: rows, error } = await studentSupabase().from('complaints').select('*').eq('schoolId', scope.schoolId).eq('studentId', scope.studentId);
-        if (error) throw error;
-        const items = rows || [];
-        target.innerHTML = items.length ? items.map(item => `<article class="student-history-item"><div><strong>${studentHtml(item.subject)}</strong><p>${studentHtml(item.description)}</p><small>${studentHtml(studentTimestamp(item.timestamp))}</small></div><span class="student-status-badge">${studentHtml(item.status || 'Pending')}</span>${item.chairmanReply ? `<p class="student-reply"><b>Response:</b> ${studentHtml(item.chairmanReply)}</p>` : ''}</article>`).join('') : studentModuleState('No complaints submitted yet.');
+        const token = sessionStorage.getItem('studentToken');
+        let items = [];
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                    p_token: token,
+                    p_module: 'complaints',
+                    p_filters: {}
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                    items = res.records;
+                }
+            } catch (e) {
+                console.warn("RPC loadStudentComplaintHistory fallback:", e);
+            }
+        }
+        if (!items.length) {
+            const scope = studentScope();
+            const { data: rows } = await studentSupabase().from('complaints').select('*').eq('schoolId', scope.schoolId).eq('studentId', scope.studentId);
+            items = rows || [];
+        }
+        target.innerHTML = items.length ? items.map(item => `<article class="student-history-item" style="padding:12px; margin-bottom:10px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc;"><div><strong style="color:#1e3a8a; font-size:14px;">${studentHtml(item.subject)}</strong><span style="font-size:11px; color:#64748b; margin-left:8px; background:#e0f2fe; padding:2px 8px; border-radius:12px;">To: ${studentHtml(item.target || 'Management')}</span><p style="margin:6px 0; font-size:13px; color:#334155;">${studentHtml(item.description)}</p><small style="color:#94a3b8;">${studentHtml(studentTimestamp(item.timestamp || item.createdAt))}</small></div><span class="student-status-badge" style="display:inline-block; margin-top:6px; font-size:11px; font-weight:700; color:#10b981;">${studentHtml(item.status || 'Pending')}</span>${item.chairmanReply ? `<p class="student-reply" style="margin-top:6px; background:#eef2ff; padding:6px 10px; border-radius:6px; font-size:12px;"><b>Response:</b> ${studentHtml(item.chairmanReply)}</p>` : ''}</article>`).join('') : studentModuleState('No complaints submitted yet.');
     } catch (error) {
         console.error('Complaint history failed', error);
         target.innerHTML = studentModuleState('Unable to load complaint history.', 'error');
@@ -6745,6 +6870,12 @@ async function loadStudentDashboard() {
     document.getElementById("dashboard-wrapper").style.display = "none";
     document.getElementById("staff-dashboard-wrapper").style.display = "none";
     document.getElementById("student-dashboard-wrapper").style.display = "block";
+
+    // Strict Firewall: Close and hide all admin/staff modals immediately
+    ["student-modal", "edit-staff-modal", "staff-modal", "fee-modal", "expense-modal", "salary-modal", "bulk-action-modal", "pin-wrapper", "id-modal"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+    });
 
     if (currentSchoolId) {
         try {

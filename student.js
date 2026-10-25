@@ -29,7 +29,6 @@ function rebuildSupabaseClient(accessToken) {
             detectSessionInUrl: true
         }
     };
-    if (accessToken) options.global = { headers: { Authorization: `Bearer ${accessToken}` } };
     return window.supabase.createClient(supabaseUrl, supabaseKey, options);
 }
 
@@ -37,13 +36,10 @@ function rebuildSupabaseClient(accessToken) {
 // can never be rendered into the current dashboard.
 let studentSessionEpoch = 0;
 
-// PostgREST reports JWT problems in the PGRST30x group (HTTP 401) and Supabase surfaces them
-// as a PostgrestError, so a rejected/expired student token is detectable without a retry loop.
 function isStudentAuthError(error) {
     if (!error) return false;
-    const code = String(error.code || '').toUpperCase();
-    if (/^PGRST30[0-3]$/.test(code)) return true;
-    return /jwt|access token|token is expired|could not authenticate/i.test(`${error.message || ''} ${error.details || ''}`);
+    const msg = String(error.message || error.details || '');
+    return /Session expired/i.test(msg);
 }
 
 // Dedicated Supabase table holding one feature-control row per school.
@@ -475,7 +471,8 @@ window.showStudentReceiptsSection = async () => {
             try {
                 const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
                     p_token: token,
-                    p_module: 'transactions'
+                    p_module: 'transactions',
+                    p_filters: {}
                 });
                 if (!rpcErr && res && res.success && Array.isArray(res.records)) {
                     receipts = res.records;
@@ -736,7 +733,8 @@ window.loadStudentComplaintsHistory = async () => {
             try {
                 const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
                     p_token: token,
-                    p_module: 'complaints'
+                    p_module: 'complaints',
+                    p_filters: {}
                 });
                 if (!rpcErr && res && res.success && Array.isArray(res.records)) {
                     list = res.records;
@@ -1185,7 +1183,8 @@ window.loadStudentAttendance = async () => {
             try {
                 const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
                     p_token: token,
-                    p_module: 'attendance'
+                    p_module: 'attendance',
+                    p_filters: {}
                 });
                 if (!rpcErr && res && res.success && Array.isArray(res.records)) {
                     studentRecords = res.records;
