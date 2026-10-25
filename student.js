@@ -873,13 +873,16 @@ window.loadStudentBatchmates = async () => {
         }
 
         if (list.length === 0 && currentSchoolId && currentStudentUser?.class) {
-            const { data, error } = await supabaseClient
+            let q = supabaseClient
                 .from('students')
-                .select('id, name, class, rollNo, photoUrl, section')
+                .select('id, name, class, rollNo, photoUrl, section, departmentId')
                 .eq('schoolId', currentSchoolId)
                 .eq('class', currentStudentUser.class)
-                .eq('status', 'Approved')
-                .order('name', { ascending: true });
+                .eq('status', 'Approved');
+            if (currentStudentUser.departmentId) {
+                q = q.eq('departmentId', currentStudentUser.departmentId);
+            }
+            const { data, error } = await q.order('name', { ascending: true });
             if (!error && data) list = data;
         }
 

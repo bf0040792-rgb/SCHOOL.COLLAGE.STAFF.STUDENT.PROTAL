@@ -2173,17 +2173,15 @@ window.initAnalyticsCharts = async () => {
             let male = 0, female = 0, other = 0;
             const students = window.fetchedStudents || [];
             students.forEach(st => {
-                const g = (st.gender || "").toString().toLowerCase().trim();
-                if (g === "male" || g === "m" || g === "boy") male++;
-                else if (g === "female" || g === "f" || g === "girl") female++;
-                else if (g) other++;
+                const g = (st.gender || (st.data && st.data.gender) || "").toString().toLowerCase().trim();
+                if (g === "female" || g === "f" || g === "girl") female++;
+                else if (g === "other" || g === "o") other++;
+                else if (g === "male" || g === "m" || g === "boy") male++;
+                else if (st.name) {
+                    // Default to Male if unassigned
+                    male++;
+                }
             });
-
-            // If empty database, display institutional baseline
-            if (male === 0 && female === 0 && other === 0) {
-                male = students.length ? Math.ceil(students.length * 0.54) : 185;
-                female = students.length ? Math.floor(students.length * 0.46) : 158;
-            }
 
             window.genderChartInstance = new Chart(gCtx, {
                 type: 'doughnut',
@@ -3364,6 +3362,10 @@ async function loadStudents() {
         (studentRows || []).forEach(dt => {
             let row = (dt && dt.data) ? { ...dt, ...dt.data } : dt;
             if (!row.status) row.status = "Approved";
+            if (!row.gender && dt.gender) row.gender = dt.gender;
+            if (!row.bloodGroup && dt.bloodGroup) row.bloodGroup = dt.bloodGroup;
+            if (!row.aadhaarNo && dt.aadhaarNo) row.aadhaarNo = dt.aadhaarNo;
+            if (!row.departmentId && dt.departmentId) row.departmentId = dt.departmentId;
             // Legacy pendings (should be 0)
             if (row.status === "Pending") pendingCount++;
             window.fetchedStudents.push(row);
@@ -4060,7 +4062,33 @@ function syncStudentModalClasses(selectedClass) {
     if (selectedClass) select.value = selectedClass;
 }
 
-window.openStudentModal = (id = null) => {
+window.populateStudentModalDepartments = async (selectedDeptId = "") => {
+    const group = document.getElementById("modal-student-dept-group");
+    const select = document.getElementById("modal-student-dept");
+    if (!group || !select) return;
+    if (!institutionIsCollege()) {
+        group.style.display = "none";
+        return;
+    }
+    group.style.display = "flex";
+    try {
+        let depts = (typeof phaseACache !== "undefined" && phaseACache && phaseACache.departments && phaseACache.departments.length) ? phaseACache.departments : null;
+        if (!depts || !depts.length) {
+            const { data } = await supabaseClient.from("departments").select("id, name, code").eq("schoolId", currentSchoolId);
+            depts = data || [];
+        }
+        let html = '<option value="">-- Select Department --</option>';
+        (depts || []).forEach(d => {
+            html += `<option value="${d.id}">${d.name} (${d.code || ''})</option>`;
+        });
+        select.innerHTML = html;
+        if (selectedDeptId) select.value = selectedDeptId;
+    } catch (e) {
+        console.warn("populateStudentModalDepartments error", e);
+    }
+};
+
+window.openStudentModal = async (id = null) => {
     if (sessionStorage.getItem('studentToken') && !currentUserId) {
         return; // Firewall: block student portal from opening edit modal
     }
@@ -4095,6 +4123,19 @@ window.openStudentModal = (id = null) => {
         document.getElementById("dob").value = formattedDob;
         
         syncStudentModalClasses(st.class || "");
+
+        // Gender, Blood Group, Aadhaar, Dept
+        if (document.getElementById("modal-student-gender")) {
+            document.getElementById("modal-student-gender").value = st.gender || (st.data && st.data.gender) || "Male";
+        }
+        if (document.getElementById("modal-student-blood-group")) {
+            document.getElementById("modal-student-blood-group").value = st.bloodGroup || (st.data && st.data.bloodGroup) || "";
+        }
+        if (document.getElementById("modal-student-aadhaar")) {
+            document.getElementById("modal-student-aadhaar").value = st.aadhaarNo || (st.data && st.data.aadhaarNo) || "";
+        }
+        await populateStudentModalDepartments(st.departmentId || (st.data && st.data.departmentId) || "");
+
         document.getElementById("modal-student-address").value = st.address || "";
         document.getElementById("modal-student-rollNo").value = st.rollNo || "";
         document.getElementById("modal-student-regNo").value = st.regNo || "";
@@ -4125,6 +4166,11 @@ window.openStudentModal = (id = null) => {
         document.getElementById("modal-student-father").value = "";
         document.getElementById("dob").value = "";
         syncStudentModalClasses(institutionIsCollege() ? "1st Semester" : "1st");
+        if (document.getElementById("modal-student-gender")) document.getElementById("modal-student-gender").value = "Male";
+        if (document.getElementById("modal-student-blood-group")) document.getElementById("modal-student-blood-group").value = "";
+        if (document.getElementById("modal-student-aadhaar")) document.getElementById("modal-student-aadhaar").value = "";
+        await populateStudentModalDepartments("");
+
         document.getElementById("modal-student-address").value = "";
         document.getElementById("modal-student-rollNo").value = "";
         document.getElementById("modal-student-regNo").value = "";
@@ -4207,6 +4253,10 @@ window.saveStudentModal = async () => {
         regNo: document.getElementById("modal-student-regNo").value.trim(),
         mobile: document.getElementById("modal-student-mobile").value.trim(),
         emergencyNo: document.getElementById("modal-student-emergency").value.trim(),
+        gender: document.getElementById("modal-student-gender") ? document.getElementById("modal-student-gender").value : "Male",
+        bloodGroup: document.getElementById("modal-student-blood-group") ? document.getElementById("modal-student-blood-group").value : "",
+        aadhaarNo: document.getElementById("modal-student-aadhaar") ? document.getElementById("modal-student-aadhaar").value.trim() : "",
+        departmentId: (document.getElementById("modal-student-dept") && institutionIsCollege()) ? document.getElementById("modal-student-dept").value : "",
         minorSubject: document.getElementById("modal-student-minor") ? document.getElementById("modal-student-minor").value.trim() : "",
         mdcSubject: document.getElementById("modal-student-mdc") ? document.getElementById("modal-student-mdc").value.trim() : "",
         skillSubject: document.getElementById("modal-student-skill") ? document.getElementById("modal-student-skill").value.trim() : "",

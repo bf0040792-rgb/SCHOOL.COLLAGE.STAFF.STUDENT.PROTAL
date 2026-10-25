@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -190,7 +190,37 @@
             </div>
 
             <div class="form-group">
-                <label for="student-class">Class *</label>
+                <label for="student-gender">Gender *</label>
+                <select id="student-gender" required>
+                    <option value="">-- Select Gender --</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="blood-group">Blood Group</label>
+                <select id="blood-group">
+                    <option value="">-- Select Blood Group (Optional) --</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="aadhaar-no">Aadhaar Number</label>
+                <input type="text" id="aadhaar-no" placeholder="12-digit Aadhaar Card Number (Optional)" maxlength="16">
+            </div>
+
+            <div class="form-group">
+                <label for="student-class">Class / Semester *</label>
                 <select id="student-class" required>
                     <option value="">-- Select Class --</option>
                     <option value="Nursery">Nursery</option>

@@ -202,6 +202,9 @@ form.addEventListener("submit", async (e) => {
 
     const name = document.getElementById("student-name").value.trim();
     const dob = document.getElementById("student-dob").value;
+    const gender = document.getElementById("student-gender") ? document.getElementById("student-gender").value : "";
+    const bloodGroup = document.getElementById("blood-group") ? document.getElementById("blood-group").value : "";
+    const aadhaarNo = document.getElementById("aadhaar-no") ? document.getElementById("aadhaar-no").value.trim() : "";
     const rollNo = document.getElementById("roll-no").value.trim();
     const studentClass = document.getElementById("student-class").value;
     collegeChoice = null;
@@ -217,8 +220,13 @@ form.addEventListener("submit", async (e) => {
     const address = document.getElementById("address").value.trim();
     const photoFile = document.getElementById("photo").files[0];
 
-    if (!name || !studentClass || !parentage || !motherName || !mobile || !address || !photoFile) {
+    if (!name || !gender || !studentClass || !parentage || !motherName || !mobile || !address || !photoFile) {
         alert("Please fill in all required fields and upload a photo.");
+        return;
+    }
+
+    if (currentInstitutionType === "college" && !departmentId) {
+        alert("Please select your Major Subject (Department).");
         return;
     }
 
@@ -239,6 +247,9 @@ form.addEventListener("submit", async (e) => {
             subjects: selectedSubjects,
             name: name,
             dob: dob,
+            gender: gender,
+            bloodGroup: bloodGroup,
+            aadhaarNo: aadhaarNo,
             rollNo: rollNo,
             class: studentClass,
             parentage: parentage,

@@ -3664,7 +3664,7 @@
             }
         }
     </style>
-    <div id="student-modal" class="modal" style="display: none; align-items: flex-start; justify-content: flex-end;">
+    <div id="student-modal" style="display: none; position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.7); z-index: 10000; align-items: flex-start; justify-content: flex-end; overflow-y: auto;">
         <div class="right-drawer-panel">
             <div
                 style="display:flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 10px;">
@@ -3681,7 +3681,7 @@
                     placeholder="Father / Guardian Name"></div>
             <div class="form-row">
                 <div class="form-group"><label>Date of Birth</label><input type="date" id="dob"></div>
-                <div class="form-group"><label>Class</label>
+                <div class="form-group"><label>Class / Semester</label>
                     <select id="modal-student-class">
                         <option value="Nursery">Nursery</option>
                         <option value="LKG">LKG</option>
@@ -3701,13 +3701,49 @@
                     </select>
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Gender *</label>
+                    <select id="modal-student-gender">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Blood Group</label>
+                    <select id="modal-student-blood-group">
+                        <option value="">-- Select Blood Group --</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Aadhaar Number</label>
+                    <input type="text" id="modal-student-aadhaar" placeholder="12-digit Aadhaar No" maxlength="16">
+                </div>
+                <div class="form-group" id="modal-student-dept-group" style="display:none;">
+                    <label>Department (Major)</label>
+                    <select id="modal-student-dept">
+                        <option value="">-- Select Department --</option>
+                    </select>
+                </div>
+            </div>
             <div class="form-row" id="modal-student-subjects-group" style="display:none; background:#f0f9ff; padding:10px; border-radius:8px; margin-top:10px;">
-    <div style="width:100%;"><strong style="color:#0284c7; font-size:13px;"><i class="fas fa-book"></i> College Subjects (Assigned by HOD)</strong></div>
-    <div class="form-group"><label>Minor</label><input type="text" id="modal-student-minor"></div>
-    <div class="form-group"><label>MDC</label><input type="text" id="modal-student-mdc"></div>
-    <div class="form-group"><label>Skill</label><input type="text" id="modal-student-skill"></div>
-    <div class="form-group"><label>Vocational</label><input type="text" id="modal-student-voc"></div>
-</div>
+                <div style="width:100%;"><strong style="color:#0284c7; font-size:13px;"><i class="fas fa-book"></i> College Subjects (Assigned by HOD)</strong></div>
+                <div class="form-group"><label>Minor</label><input type="text" id="modal-student-minor"></div>
+                <div class="form-group"><label>MDC</label><input type="text" id="modal-student-mdc"></div>
+                <div class="form-group"><label>Skill</label><input type="text" id="modal-student-skill"></div>
+                <div class="form-group"><label>Vocational</label><input type="text" id="modal-student-voc"></div>
+            </div>
             <div class="form-group"><label>Address</label><textarea id="modal-student-address" rows="2"></textarea>
             </div>
             <div class="form-row">
