@@ -185,8 +185,7 @@
                 <div class="card p-6 rounded-2xl bg-white shadow-sm border border-gray-100">
                     <h3 class="text-xl font-bold text-[#1E3A8A] mb-2 flex items-center gap-2"><i
                             class="fas fa-wrench"></i> Register Complaint</h3>
-                    <p class="text-sm text-gray-500 mb-6">Send your complaints securely. They will be directed to the
-                        appropriate department.</p>
+                    <p class="text-sm text-gray-500 mb-6">Send your complaints securely. They will be directed to the selected department.</p>
                     <form id="student-complaint-form" onsubmit="submitStudentComplaint(event)"
                         class="flex flex-col gap-4">
                         <div>
@@ -194,10 +193,10 @@
                             <select id="complaint-target" required
                                 class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#1E3A8A] outline-none">
                                 <option value="">-- Select Recipient --</option>
-                                <option value="CoreEduTech">CoreEduTech (System Admin)</option>
-                                <option value="Principal">Principal / Chairman</option>
+                                <option value="Principal">Principal</option>
                                 <option value="Staff">Staff Member / Teacher</option>
-                                <option value="Student">Student Management</option>
+                                <option value="Student Management">Student Management</option>
+                                <option value="COREEDU.IN">COREEDU.IN</option>
                             </select>
                         </div>
                         <div>
@@ -210,10 +209,15 @@
                             <textarea id="complaint-desc" required rows="4" placeholder="Detail your complaint here..."
                                 class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#1E3A8A] outline-none resize-none"></textarea>
                         </div>
-                        <button type="submit"
+                        <button type="submit" id="stu-complaint-submit-btn"
                             class="mt-2 w-full py-3 bg-[#1E3A8A] text-white font-bold rounded-xl shadow-md hover:bg-blue-800 transition-colors flex items-center justify-center gap-2"><i
                                 class="fas fa-paper-plane"></i> Submit Complaint</button>
                     </form>
+
+                    <div class="mt-8 pt-6 border-t border-gray-100">
+                        <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2"><i class="fas fa-history text-blue-600"></i> My Submitted Complaints & Status</h4>
+                        <div id="stu-complaint-container" class="grid gap-3"></div>
+                    </div>
                 </div>
             </div>
 
@@ -235,14 +239,39 @@
                 <button onclick="openStudentView('student-main-grid')"
                     class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i>
                     Back to Dashboard</button>
-                <div class="card"
-                    style="text-align: center; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
-                    <h3 style="color: #10b981; margin-bottom: 8px; font-family:'Inter',sans-serif;">Pay Tuition via QR
-                    </h3>
-                    <img id="stu-qr-img" src="" alt="QR" style="max-width:180px; margin: 0 auto 16px; display:block;">
-                    <p class="text-sm text-gray-500 mb-2">UPI ID: <span id="stu-upi-text"></span></p>
-                    <a id="stu-upi-deep-link" href="#" class="action-btn btn-green"
-                        style="display:inline-block; margin-top:12px;">Open in UPI App</a>
+                <div class="card p-6 rounded-2xl bg-white shadow-sm border border-gray-100">
+                    <div class="flex flex-wrap justify-between items-center mb-6 gap-3 pb-4 border-b border-gray-100">
+                        <div>
+                            <h3 class="text-xl font-bold text-[#1E3A8A] flex items-center gap-2"><i class="fas fa-indian-rupee-sign"></i> Fee Details & Payment</h3>
+                            <p class="text-xs text-gray-500">View your fee breakdown, pay dues via QR, and track statements.</p>
+                        </div>
+                        <button onclick="window.showStudentReceiptsSection()" class="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-lg text-xs flex items-center gap-1.5 transition">
+                            <i class="fas fa-receipt"></i> View Receipts & Statement
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div class="p-5 bg-rose-50 border border-rose-100 rounded-xl">
+                            <div class="text-xs font-semibold text-rose-600 uppercase tracking-wider">Total Outstanding Due</div>
+                            <div class="text-3xl font-extrabold text-rose-700 mt-1">₹ <span id="fee-panel-due">0</span></div>
+                            <div class="text-xs text-rose-500 mt-1">Pending payment for current session</div>
+                        </div>
+                        <div class="p-5 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Total Fee Paid to Date</div>
+                            <div class="text-3xl font-extrabold text-emerald-700 mt-1">₹ <span id="fee-panel-paid">0</span></div>
+                            <div class="text-xs text-emerald-600 mt-1">Total cleared fee transactions</div>
+                        </div>
+                    </div>
+
+                    <div id="fee-qr-card" class="text-center p-6 bg-slate-50 border border-slate-200 rounded-xl max-w-md mx-auto">
+                        <h4 class="font-bold text-slate-800 text-base mb-1">Instant QR Payment (Zero Fee)</h4>
+                        <p class="text-xs text-slate-500 mb-4">Scan using Google Pay, PhonePe, Paytm, or any UPI App</p>
+                        <img id="stu-qr-img" src="" alt="QR" style="max-width:180px; margin: 0 auto 14px; display:block; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                        <p class="text-xs text-slate-600 mb-3 font-mono">UPI ID: <span id="stu-upi-text" class="font-bold text-slate-800"></span></p>
+                        <a id="stu-upi-deep-link" href="#" class="action-btn btn-green inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-semibold text-sm">
+                            <i class="fas fa-bolt"></i> Open in UPI App
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -251,18 +280,120 @@
                 <button onclick="openStudentView('student-main-grid')"
                     class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i>
                     Back to Dashboard</button>
-                <h3 class="text-xl font-bold text-[#1E3A8A] mb-4">Fee Receipts</h3>
+                <div class="flex flex-wrap justify-between items-center mb-6 gap-3 pb-4 border-b border-gray-100">
+                    <div>
+                        <h3 class="text-xl font-bold text-[#1E3A8A] flex items-center gap-2"><i class="fas fa-receipt"></i> Fee Receipts & Ledger Statement</h3>
+                        <p class="text-xs text-gray-500">Official record of all tuition, admission, and school fee payments.</p>
+                    </div>
+                    <button onclick="window.printStudentFeeStatement()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow transition">
+                        <i class="fas fa-file-invoice"></i> Download / Print Full Statement
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 mb-6 text-center">
+                    <div class="p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+                        <div class="text-[11px] font-semibold text-blue-600 uppercase">Paid Total</div>
+                        <div class="text-lg font-black text-blue-900 mt-0.5">₹ <span id="receipt-summary-paid">0</span></div>
+                    </div>
+                    <div class="p-3 bg-amber-50/50 border border-amber-100 rounded-xl">
+                        <div class="text-[11px] font-semibold text-amber-600 uppercase">Due Balance</div>
+                        <div class="text-lg font-black text-amber-900 mt-0.5">₹ <span id="receipt-summary-due">0</span></div>
+                    </div>
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div class="text-[11px] font-semibold text-slate-600 uppercase">Receipts</div>
+                        <div class="text-lg font-black text-slate-800 mt-0.5"><span id="receipt-summary-count">0</span></div>
+                    </div>
+                </div>
+
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
+                                <th>Receipt No</th>
+                                <th>Mode</th>
                                 <th>Amount</th>
                                 <th>Status</th>
+                                <th style="text-align:center;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="stu-receipt-table-body"></tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- BATCHMATES & CLASS DISCUSSION -->
+            <div id="student-batchmate-section" class="student-view-section card" style="display: none; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); margin-bottom:20px;">
+                <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+                
+                <div class="flex flex-wrap justify-between items-center mb-6 gap-3 pb-4 border-b border-gray-100">
+                    <div>
+                        <h3 class="text-xl font-bold text-[#1E3A8A] flex items-center gap-2"><i class="fas fa-users text-indigo-600"></i> My Batchmates & Class Chat</h3>
+                        <p class="text-xs text-gray-500">Connect and collaborate with students of <strong id="batchmate-class-tag" class="text-indigo-600">your class</strong>.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="batch-tab-btn-dir" onclick="window.switchBatchmateSubTab('directory')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow"><i class="fas fa-id-card"></i> Classmates</button>
+                        <button id="batch-tab-btn-chat" onclick="window.switchBatchmateSubTab('chat')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-comments"></i> Class Chat</button>
+                    </div>
+                </div>
+
+                <!-- SUBTAB: CLASS DIRECTORY -->
+                <div id="batchmate-subtab-directory">
+                    <div id="batchmate-list-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+                </div>
+
+                <!-- SUBTAB: CLASS CHAT -->
+                <div id="batchmate-subtab-chat" style="display:none;">
+                    <div class="border border-gray-200 rounded-xl overflow-hidden bg-slate-50 flex flex-col" style="height:480px;">
+                        <div class="p-3 bg-white border-b border-gray-200 flex justify-between items-center">
+                            <div class="font-bold text-gray-800 text-sm flex items-center gap-2"><i class="fas fa-comments text-indigo-600"></i> <span id="class-chat-title">Class Room Chat</span></div>
+                            <button onclick="window.loadClassChat()" class="text-xs text-indigo-600 hover:underline flex items-center gap-1"><i class="fas fa-rotate"></i> Refresh</button>
+                        </div>
+                        <div id="class-chat-box" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3"></div>
+                        <form onsubmit="window.sendClassChatMessage(event)" class="p-3 bg-white border-t border-gray-200 flex gap-2">
+                            <input type="text" id="class-chat-input" placeholder="Type a message to your classmates..." required class="flex-1 p-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button type="submit" id="class-chat-send-btn" class="px-4 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-sm shadow hover:bg-indigo-700 transition flex items-center gap-1.5"><i class="fas fa-paper-plane"></i> Send</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STUDENT PROFILE SECTION -->
+            <div id="student-profile-section" class="student-view-section card" style="display: none; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); margin-bottom:20px;">
+                <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+                <h3 class="text-xl font-bold text-[#1E3A8A] mb-4 flex items-center gap-2"><i class="fas fa-user-circle"></i> Student Profile</h3>
+                <div class="card p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row items-center gap-6 mb-6">
+                    <img id="profile-photo" src="" alt="Student" style="width:110px; height:110px; border-radius:50%; object-fit:cover; border:4px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,0.1); background:#e2e8f0;">
+                    <div class="text-center md:text-left flex-1">
+                        <h4 id="profile-name" class="text-2xl font-black text-[#1E3A8A]">Student Name</h4>
+                        <div class="flex flex-wrap gap-2 justify-center md:justify-start mt-2">
+                            <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full font-bold text-xs" id="profile-class">Class</span>
+                            <span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-xs" id="profile-roll">Roll No</span>
+                            <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full font-bold text-xs" id="profile-school">School</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-white border border-gray-200 rounded-xl">
+                        <div class="text-xs text-gray-500 font-semibold uppercase">Parentage (Father's Name)</div>
+                        <div id="profile-father" class="font-bold text-gray-800 mt-1">—</div>
+                    </div>
+                    <div class="p-4 bg-white border border-gray-200 rounded-xl">
+                        <div class="text-xs text-gray-500 font-semibold uppercase">Mother's Name</div>
+                        <div id="profile-mother" class="font-bold text-gray-800 mt-1">—</div>
+                    </div>
+                    <div class="p-4 bg-white border border-gray-200 rounded-xl">
+                        <div class="text-xs text-gray-500 font-semibold uppercase">Date of Birth</div>
+                        <div id="profile-dob" class="font-bold text-gray-800 mt-1">—</div>
+                    </div>
+                    <div class="p-4 bg-white border border-gray-200 rounded-xl">
+                        <div class="text-xs text-gray-500 font-semibold uppercase">Mobile Number</div>
+                        <div id="profile-mobile" class="font-bold text-gray-800 mt-1">—</div>
+                    </div>
+                    <div class="p-4 bg-white border border-gray-200 rounded-xl md:col-span-2">
+                        <div class="text-xs text-gray-500 font-semibold uppercase">Residential Address</div>
+                        <div id="profile-address" class="font-bold text-gray-800 mt-1">—</div>
+                    </div>
                 </div>
             </div>
             <div id="student-homework-section" class="student-view-section card" style="display: none; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); margin-bottom:20px;">

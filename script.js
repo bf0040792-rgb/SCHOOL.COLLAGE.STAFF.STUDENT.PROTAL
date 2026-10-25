@@ -2989,14 +2989,66 @@ window.populateFeeStudents = () => {
 window.autoFillFeeDetails = () => { const sid = document.getElementById("fee_student").value; const s = window.fetchedStudents.find(x => x.id === sid); if (s) document.getElementById("fee_mobile").value = s.mobile || 'N/A'; };
 
 window.saveStudentFee = async () => {
-    const cls = document.getElementById("fee_class").value; const sId = document.getElementById("fee_student").value; const mob = document.getElementById("fee_mobile").value; const amt = document.getElementById("fee_amount").value; const mode = document.getElementById("fee_mode").value; const date = document.getElementById("fee_date").value;
+    const cls = document.getElementById("fee_class").value; 
+    const sId = document.getElementById("fee_student").value; 
+    const mob = document.getElementById("fee_mobile").value; 
+    const amt = document.getElementById("fee_amount").value; 
+    const mode = document.getElementById("fee_mode").value; 
+    const date = document.getElementById("fee_date").value;
     if (!sId || !amt || !date) return alert("Fill all required details.");
-    const selectEl = document.getElementById("fee_student"); const sName = selectEl.options[selectEl.selectedIndex].text.split('(')[0].trim();
+    const selectEl = document.getElementById("fee_student"); 
+    const sName = selectEl.options[selectEl.selectedIndex].text.split('(')[0].trim();
+    const receiptNo = 'REC-' + Date.now().toString().slice(-6);
     try {
-        const { error } = await supabaseClient.from("transactions").insert({ schoolId: currentSchoolId, type: "Fee", personId: sId, personName: sName, class: cls, mobile: mob, amount: Number(amt), mode: mode, date: date, createdAt: new Date().toISOString() });
+        const payload = { 
+            id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            schoolId: currentSchoolId, 
+            studentId: sId,
+            personId: sId, 
+            personName: sName, 
+            class: cls, 
+            mobile: mob, 
+            amount: Number(amt), 
+            mode: mode, 
+            method: mode,
+            type: "Fee", 
+            category: "Tuition Fee",
+            status: "Paid",
+            referenceId: receiptNo,
+            date: date, 
+            memo: `Tuition Fee payment for ${sName} (${cls})`,
+            data: { 
+                studentName: sName, 
+                studentId: sId, 
+                receiptNo: receiptNo, 
+                class: cls, 
+                mode: mode, 
+                date: date, 
+                amount: Number(amt) 
+            },
+            createdAt: new Date().toISOString() 
+        };
+        const { error } = await supabaseClient.from("transactions").insert([payload]);
         if (error) throw error;
-        alert("Fee Record Added!"); document.getElementById("fee_amount").value = ""; loadTransactions();
-    } catch (e) { }
+
+        // Auto-reconcile student's feeDue balance
+        const student = (window.fetchedStudents || []).find(s => s.id === sId);
+        if (student) {
+            const currentDue = Number(student.feeDue ?? student.dueBalance ?? 0);
+            const newDue = Math.max(0, currentDue - Number(amt));
+            student.feeDue = newDue;
+            student.dueBalance = newDue;
+            await supabaseClient.from("students").update({ feeDue: newDue, dueBalance: newDue }).eq("id", sId).eq("schoolId", currentSchoolId);
+        }
+
+        alert(`✅ Fee Record Added Successfully!\nReceipt No: ${receiptNo}\nStudent: ${sName}\nAmount Paid: ₹${amt}`); 
+        document.getElementById("fee_amount").value = ""; 
+        loadTransactions();
+        if (typeof loadStudents === 'function') loadStudents();
+    } catch (e) { 
+        console.error("saveStudentFee error:", e);
+        alert("Error saving fee: " + (e.message || e));
+    }
 };
 
 window.saveStaffSalary = async () => {

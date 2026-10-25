@@ -225,11 +225,13 @@ window.handleStudentFeatureClick = (featureId) => {
         alert("⚠️ Facility Locked: This feature has been disabled by the administration for your institution. You can view this section, but active access is restricted.");
         return;
     }
+    if (featureId === 'profile') return window.loadStudentProfile();
     if (featureId === 'fee') return window.showStudentPaymentSection();
     if (featureId === 'idcard') return window.openStudentView('student-idcard-section');
     if (featureId === 'admit') return window.loadStudentAdmitCard();
     if (featureId === 'fee-receipt') return window.showStudentReceiptsSection();
-    if (featureId === 'complaint') return window.openStudentView('student-complaint-section');
+    if (featureId === 'complaint') return window.openStudentComplaintSection();
+    if (featureId === 'batchmate') return window.loadStudentBatchmates();
     
     // Dispatch to implementation functions
     if (featureId === 'homework') return window.loadStudentHomework();
@@ -401,35 +403,85 @@ async function loadStudentDashboard() {
     window.openStudentView('student-main-grid');
 }
 
-window.showStudentPaymentSection = () => {
-    if (!currentStudentSchoolDoc?.paymentQrUrl || !currentStudentSchoolDoc?.upiId) {
-        alert("The school has not configured the QR Payment System yet.");
-        return;
-    }
+window.showStudentPaymentSection = async () => {
     window.openStudentView('student-payment-section');
-    $('stu-qr-img') && ($('stu-qr-img').src = currentStudentSchoolDoc.paymentQrUrl);
-    $('stu-upi-text') && ($('stu-upi-text').innerText = currentStudentSchoolDoc.upiId);
-    const dueAmount = Number(currentStudentUser?.feeDue || currentStudentUser?.dueBalance || 0);
-    const upiLink = `upi://pay?pa=${currentStudentSchoolDoc.upiId}&pn=${encodeURIComponent(currentStudentSchoolDoc.schoolName || 'School')}&am=${dueAmount > 0 ? dueAmount : 0}&cu=INR`;
-    $('stu-upi-deep-link') && ($('stu-upi-deep-link').href = upiLink);
+    
+    // Refresh student record to ensure live fee balance
+    try {
+        if (currentStudentUser?.id && currentSchoolId) {
+            const { data: freshStudent } = await supabaseClient
+                .from('students')
+                .select('feeDue, dueBalance')
+                .eq('id', currentStudentUser.id)
+                .eq('schoolId', currentSchoolId)
+                .maybeSingle();
+            if (freshStudent) {
+                currentStudentUser.feeDue = freshStudent.feeDue;
+                currentStudentUser.dueBalance = freshStudent.dueBalance;
+            }
+        }
+    } catch (e) {
+        console.warn("Live fee sync warning:", e);
+    }
+
+    const dueAmount = Number(currentStudentUser?.feeDue ?? currentStudentUser?.dueBalance ?? 0);
+    const feeDueEl = $('fee-panel-due');
+    if (feeDueEl) feeDueEl.innerText = dueAmount.toLocaleString('en-IN');
+    const stuDueBal = $('stu-due-balance');
+    if (stuDueBal) stuDueBal.innerText = dueAmount.toLocaleString('en-IN');
+
+    // Fetch total paid fee
+    let paidTotal = 0;
+    try {
+        const { data: txs } = await supabaseClient
+            .from('transactions')
+            .select('amount')
+            .eq('schoolId', currentSchoolId)
+            .eq('type', 'Fee')
+            .or(`studentId.eq.${currentStudentUser?.id},personId.eq.${currentStudentUser?.id}`);
+        if (txs) {
+            txs.forEach(t => { paidTotal += Number(t.amount || 0); });
+        }
+    } catch (txErr) {
+        console.warn("Fee paid calculation warning:", txErr);
+    }
+    const feePaidEl = $('fee-panel-paid');
+    if (feePaidEl) feePaidEl.innerText = paidTotal.toLocaleString('en-IN');
+
+    // Populate QR Code
+    if (currentStudentSchoolDoc?.paymentQrUrl) {
+        $('stu-qr-img') && ($('stu-qr-img').src = currentStudentSchoolDoc.paymentQrUrl);
+        $('stu-upi-text') && ($('stu-upi-text').innerText = currentStudentSchoolDoc.upiId || 'N/A');
+        const upiLink = `upi://pay?pa=${currentStudentSchoolDoc.upiId || ''}&pn=${encodeURIComponent(currentStudentSchoolDoc.schoolName || 'School')}&am=${dueAmount > 0 ? dueAmount : 0}&cu=INR`;
+        $('stu-upi-deep-link') && ($('stu-upi-deep-link').href = upiLink);
+        $('fee-qr-card') && ($('fee-qr-card').style.display = 'block');
+    } else {
+        $('fee-qr-card') && ($('fee-qr-card').style.display = 'none');
+    }
 };
+
+window.currentStudentReceipts = [];
 
 window.showStudentReceiptsSection = async () => {
     window.openStudentView('student-receipt-section');
     const tbody = $('stu-receipt-table-body');
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:16px;">Loading receipts...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:#8fa3bf;"><i class="fas fa-spinner fa-spin"></i> Loading official fee receipts...</td></tr>`;
     
     try {
         const token = sessionStorage.getItem('studentToken');
         let receipts = [];
         if (token) {
-            const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
-                p_token: token,
-                p_module: 'transactions'
-            });
-            if (!rpcErr && res && res.success && Array.isArray(res.records)) {
-                receipts = res.records;
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                    p_token: token,
+                    p_module: 'transactions'
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                    receipts = res.records;
+                }
+            } catch (rpcEx) {
+                console.warn("RPC transactions fallback:", rpcEx);
             }
         }
         if (receipts.length === 0 && currentStudentUser?.id) {
@@ -438,51 +490,572 @@ window.showStudentReceiptsSection = async () => {
                 .select("*")
                 .eq("schoolId", currentSchoolId)
                 .eq("type", "Fee")
-                .eq("studentId", currentStudentUser.id);
+                .or(`studentId.eq.${currentStudentUser.id},personId.eq.${currentStudentUser.id}`)
+                .order("createdAt", { ascending: false });
             if (!error && data) receipts = data;
         }
+
+        window.currentStudentReceipts = receipts;
+
+        // Calculate totals
+        let totalPaid = 0;
+        receipts.forEach(r => { totalPaid += Number(r.amount || 0); });
+        const dueBalance = Number(currentStudentUser?.feeDue ?? currentStudentUser?.dueBalance ?? 0);
+
+        $('receipt-summary-paid') && ($('receipt-summary-paid').innerText = totalPaid.toLocaleString('en-IN'));
+        $('receipt-summary-due') && ($('receipt-summary-due').innerText = dueBalance.toLocaleString('en-IN'));
+        $('receipt-summary-count') && ($('receipt-summary-count').innerText = receipts.length);
+
         if (!receipts || receipts.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:16px; color:#64748b;">No receipts available.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#64748b;">No fee receipts or payment entries found for your account.</td></tr>`;
             return;
         }
+
         let html = '';
-        receipts.forEach(data => {
+        receipts.forEach((data, idx) => {
+            const receiptNo = data.referenceId || data.receiptNo || (data.data?.receiptNo) || ('REC-' + String(data.id || '').slice(-6));
+            const dateStr = data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString('en-GB') : 'N/A');
+            const mode = data.method || data.mode || (data.data?.mode) || 'Online';
+            const safeReceipt = (receiptNo || '').replace(/'/g, "\\'");
             html += `<tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 12px;">${sanitizeHtml(data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A'))}</td>
-                <td style="padding: 12px; font-weight: bold; color: #10b981;">₹${sanitizeHtml(data.amount || 0)}</td>
-                <td style="padding: 12px;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-size: 12px;">${sanitizeHtml(data.status || 'Paid')} (${sanitizeHtml(data.method || data.mode || 'Online')})</span></td>
+                <td style="padding: 12px; font-weight:600; color:#334155;">${sanitizeHtml(dateStr)}</td>
+                <td style="padding: 12px; font-family:monospace; font-weight:bold; color:#1E3A8A;">${sanitizeHtml(receiptNo)}</td>
+                <td style="padding: 12px; color:#64748b;">${sanitizeHtml(mode)}</td>
+                <td style="padding: 12px; font-weight: bold; color: #10b981;">₹${Number(data.amount || 0).toLocaleString('en-IN')}</td>
+                <td style="padding: 12px;"><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight:700;">${sanitizeHtml(data.status || 'Paid')}</span></td>
+                <td style="padding: 12px; text-align:center;">
+                    <button class="action-btn" style="padding:4px 10px; font-size:11px; background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; border-radius:6px; cursor:pointer;" onclick="window.printSingleReceipt(${idx})">
+                        <i class="fas fa-print"></i> Slip
+                    </button>
+                </td>
             </tr>`;
         });
         tbody.innerHTML = html;
     } catch (err) {
         console.error("Error fetching receipts:", err);
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:16px; color:#ef4444;">Error loading receipts.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:#ef4444;">Error loading receipts.</td></tr>`;
+    }
+};
+
+window.printSingleReceipt = (index) => {
+    const data = window.currentStudentReceipts?.[index];
+    if (!data) return alert("Receipt data not found.");
+    const receiptNo = data.referenceId || data.receiptNo || (data.data?.receiptNo) || ('REC-' + String(data.id || '').slice(-6));
+    const dateStr = data.date || (data.createdAt ? new Date(data.createdAt).toLocaleDateString('en-GB') : 'N/A');
+    const mode = data.method || data.mode || (data.data?.mode) || 'Online';
+    const amount = Number(data.amount || 0).toLocaleString('en-IN');
+    const schoolName = currentStudentSchoolDoc?.schoolName || "Institution";
+
+    const printWin = window.open('', '_blank', 'width=750,height=800');
+    if (!printWin) return alert("Please allow popups to print receipt.");
+
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Fee Receipt - ${receiptNo}</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 30px; color: #1e293b; }
+                .receipt-box { border: 2px solid #1e3a8a; border-radius: 12px; padding: 25px; max-width: 650px; margin: 0 auto; }
+                .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 15px; margin-bottom: 20px; }
+                .school-title { font-size: 22px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin: 0; }
+                .sub-title { font-size: 13px; color: #64748b; margin-top: 4px; }
+                .receipt-badge { display: inline-block; background: #dcfce7; color: #166534; font-weight: bold; font-size: 13px; padding: 4px 12px; border-radius: 20px; margin-top: 10px; }
+                .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; margin-bottom: 20px; }
+                .info-item { padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+                .info-label { color: #64748b; font-size: 12px; }
+                .info-value { font-weight: 700; color: #0f172a; }
+                .amount-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0; }
+                .amount-val { font-size: 28px; font-weight: 900; color: #10b981; }
+                .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 35px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+                .stamp-box { border: 1px dashed #94a3b8; width: 140px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #94a3b8; border-radius: 6px; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="text-align:center; margin-bottom:20px;">
+                <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; background:#1e3a8a; color:white; border:none; border-radius:8px; cursor:pointer;">Print Receipt</button>
+            </div>
+            <div class="receipt-box">
+                <div class="header">
+                    <h1 class="school-title">${schoolName}</h1>
+                    <div class="sub-title">Official Student Fee Payment Voucher</div>
+                    <div class="receipt-badge">PAID • VERIFIED</div>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item"><div class="info-label">Receipt Number</div><div class="info-value">${receiptNo}</div></div>
+                    <div class="info-item"><div class="info-label">Payment Date</div><div class="info-value">${dateStr}</div></div>
+                    <div class="info-item"><div class="info-label">Student Full Name</div><div class="info-value">${currentStudentUser?.name || 'Student'}</div></div>
+                    <div class="info-item"><div class="info-label">Class / Semester</div><div class="info-value">${currentStudentUser?.class || 'N/A'}</div></div>
+                    <div class="info-item"><div class="info-label">Roll Number</div><div class="info-value">${currentStudentUser?.rollNo || currentStudentUser?.roll || 'N/A'}</div></div>
+                    <div class="info-item"><div class="info-label">Payment Mode</div><div class="info-value">${mode}</div></div>
+                </div>
+                <div class="amount-box">
+                    <div style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase;">Amount Received</div>
+                    <div class="amount-val">₹ ${amount}</div>
+                    <div style="font-size:12px; color:#10b981; font-weight:bold; margin-top:4px;">Payment Cleared & Credited</div>
+                </div>
+                <div class="footer">
+                    <div>
+                        <div>Generated via CoreEdu Digital Portal</div>
+                        <div>Date: ${new Date().toLocaleDateString('en-GB')}</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div class="stamp-box">Authorized Seal</div>
+                        <div style="margin-top:6px; font-size:11px;">Accounts Officer</div>
+                    </div>
+                </div>
+            </div>
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };</script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+};
+
+window.printStudentFeeStatement = () => {
+    const receipts = window.currentStudentReceipts || [];
+    const schoolName = currentStudentSchoolDoc?.schoolName || "Institution";
+    let totalPaid = 0;
+    receipts.forEach(r => { totalPaid += Number(r.amount || 0); });
+    const dueAmount = Number(currentStudentUser?.feeDue ?? currentStudentUser?.dueBalance ?? 0);
+
+    const printWin = window.open('', '_blank', 'width=850,height=900');
+    if (!printWin) return alert("Please allow popups to view statement.");
+
+    let rowsHtml = '';
+    if (receipts.length === 0) {
+        rowsHtml = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#64748b;">No payment entries recorded.</td></tr>`;
+    } else {
+        receipts.forEach((r, idx) => {
+            const receiptNo = r.referenceId || r.receiptNo || (r.data?.receiptNo) || ('REC-' + String(r.id || '').slice(-6));
+            const dateStr = r.date || (r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB') : 'N/A');
+            const mode = r.method || r.mode || (r.data?.mode) || 'Online';
+            rowsHtml += `<tr>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:center;">${idx + 1}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${dateStr}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:bold; color:#1e3a8a;">${receiptNo}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${mode}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#0f172a;">₹ ${Number(r.amount || 0).toLocaleString('en-IN')}</td>
+            </tr>`;
+        });
+    }
+
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Fee Statement - ${currentStudentUser?.name || 'Student'}</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 40px; color: #1e293b; }
+                .statement-container { max-width: 800px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+                .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 15px; margin-bottom: 25px; }
+                .school-title { font-size: 24px; font-weight: 800; color: #1e3a8a; margin: 0; text-transform: uppercase; }
+                .doc-title { font-size: 15px; font-weight: 700; color: #475569; margin-top: 6px; letter-spacing: 1px; }
+                .student-details { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 25px; font-size: 13px; }
+                .ledger-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
+                .ledger-table th { background: #1e3a8a; color: white; padding: 10px; text-align: left; }
+                .ledger-table th:last-child { text-align: right; }
+                .summary-card { display: flex; justify-content: flex-end; gap: 20px; font-size: 14px; margin-top: 15px; }
+                .summary-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 20px; text-align: right; min-width: 160px; }
+                .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; color: #64748b; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="text-align:center; margin-bottom:20px;">
+                <button onclick="window.print()" style="padding:10px 24px; font-weight:bold; background:#1e3a8a; color:white; border:none; border-radius:8px; cursor:pointer;">Print / Save as PDF</button>
+            </div>
+            <div class="statement-container">
+                <div class="header">
+                    <h1 class="school-title">${schoolName}</h1>
+                    <div class="doc-title">OFFICIAL STUDENT FEE STATEMENT & STATEMENT OF ACCOUNT</div>
+                </div>
+                <div class="student-details">
+                    <div><strong>Student Name:</strong> ${currentStudentUser?.name || 'N/A'}</div>
+                    <div><strong>Class / Semester:</strong> ${currentStudentUser?.class || 'N/A'}</div>
+                    <div><strong>Roll Number:</strong> ${currentStudentUser?.rollNo || currentStudentUser?.roll || 'N/A'}</div>
+                    <div><strong>Parentage:</strong> ${currentStudentUser?.parentage || currentStudentUser?.fatherName || 'N/A'}</div>
+                    <div><strong>Statement Date:</strong> ${new Date().toLocaleDateString('en-GB')}</div>
+                    <div><strong>Student ID:</strong> ${currentStudentUser?.id || 'N/A'}</div>
+                </div>
+                <table class="ledger-table">
+                    <thead>
+                        <tr>
+                            <th style="width:40px; text-align:center;">#</th>
+                            <th>Payment Date</th>
+                            <th>Receipt Number</th>
+                            <th>Mode</th>
+                            <th>Amount Paid</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                <div class="summary-card">
+                    <div class="summary-box">
+                        <div style="font-size:11px; color:#64748b;">TOTAL AMOUNT PAID</div>
+                        <div style="font-size:18px; font-weight:800; color:#10b981;">₹ ${totalPaid.toLocaleString('en-IN')}</div>
+                    </div>
+                    <div class="summary-box">
+                        <div style="font-size:11px; color:#64748b;">CURRENT DUE BALANCE</div>
+                        <div style="font-size:18px; font-weight:800; color:${dueAmount > 0 ? '#e11d48' : '#10b981'};">₹ ${dueAmount.toLocaleString('en-IN')}</div>
+                    </div>
+                </div>
+                <div class="footer">
+                    <div>
+                        <div>This is an official computer-generated fee ledger statement.</div>
+                        <div>Certified by Institution Accounts & Financial Audit.</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="border-bottom:1px solid #475569; width:150px; margin-bottom:4px;"></div>
+                        <div>Authorized Signatory</div>
+                    </div>
+                </div>
+            </div>
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };</script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+};
+
+window.openStudentComplaintSection = () => {
+    window.openStudentView('student-complaint-section');
+    window.loadStudentComplaintsHistory();
+};
+
+window.loadStudentComplaintsHistory = async () => {
+    const container = $('stu-complaint-container');
+    if (!container || !currentStudentUser?.id) return;
+    container.innerHTML = `<div style="text-align:center; padding:12px; color:#8fa3bf;"><i class="fas fa-spinner fa-spin"></i> Loading complaints...</div>`;
+
+    try {
+        const token = sessionStorage.getItem('studentToken');
+        let list = [];
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_module_records', {
+                    p_token: token,
+                    p_module: 'complaints'
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.records)) {
+                    list = res.records;
+                }
+            } catch (rpcEx) {
+                console.warn("RPC complaints fallback:", rpcEx);
+            }
+        }
+        if (list.length === 0) {
+            const { data, error } = await supabaseClient
+                .from("complaints")
+                .select("*")
+                .eq("schoolId", currentSchoolId)
+                .eq("studentId", currentStudentUser.id)
+                .order("createdAt", { ascending: false });
+            if (!error && data) list = data;
+        }
+
+        if (!list || list.length === 0) {
+            container.innerHTML = `<div class="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-xs text-gray-500">You have not submitted any complaints yet.</div>`;
+            return;
+        }
+
+        let html = '';
+        list.forEach(c => {
+            const status = c.status || 'Pending';
+            const statusColor = status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : (status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700');
+            const dateStr = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB') : (c.timestamp ? new Date(c.timestamp).toLocaleDateString('en-GB') : 'N/A');
+            const targetBadge = sanitizeHtml(c.target || 'Administration');
+            html += `<div class="p-4 border border-gray-200 rounded-xl bg-white shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                    <div>
+                        <span class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">Target: ${targetBadge}</span>
+                        <h4 class="font-bold text-gray-800 text-sm mt-1">${sanitizeHtml(c.subject || 'Complaint')}</h4>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400">${sanitizeHtml(dateStr)}</span>
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${statusColor}">${sanitizeHtml(status)}</span>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-100">${sanitizeHtml(c.description || '')}</p>
+                ${c.chairmanReply ? `<div class="p-3 bg-blue-50 border-l-4 border-blue-600 rounded-r-lg text-xs mt-1">
+                    <strong class="text-blue-900 block mb-1"><i class="fas fa-reply"></i> Official Response:</strong>
+                    <span class="text-blue-800">${sanitizeHtml(c.chairmanReply)}</span>
+                </div>` : ''}
+            </div>`;
+        });
+        container.innerHTML = html;
+    } catch (err) {
+        console.error("loadStudentComplaintsHistory error:", err);
+        container.innerHTML = `<div class="p-3 bg-rose-50 text-rose-600 text-xs rounded-lg">Failed to load complaint records.</div>`;
     }
 };
 
 window.submitStudentComplaint = async (event) => {
     event.preventDefault();
     const token = sessionStorage.getItem('studentToken');
-    if (!token) return alert("Please login again.");
+    if (!token && !currentStudentUser?.id) return alert("Please login again.");
     const target = $('complaint-target')?.value;
     const subject = $('complaint-subject')?.value.trim();
     const description = $('complaint-desc')?.value.trim();
-    if (!target || !subject || !description) return alert("Please fill all complaint fields.");
-    
+    const submitBtn = $('stu-complaint-submit-btn');
+
+    if (!target || !subject || !description) return alert("Please select recipient target and enter both subject and description.");
+
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Submitting..."; }
+
     try {
-        const { data: res, error } = await supabaseClient.rpc('submit_student_complaint', {
-            p_token: token,
-            p_target: target,
-            p_subject: subject,
-            p_description: description
-        });
-        if (error || !res?.success) throw new Error(error?.message || res?.error || "Failed to submit complaint.");
-        alert("Complaint submitted successfully.");
+        let success = false;
+        if (token) {
+            try {
+                const { data: res, error } = await supabaseClient.rpc('submit_student_complaint', {
+                    p_token: token,
+                    p_target: target,
+                    p_subject: subject,
+                    p_description: description
+                });
+                if (!error && res && res.success) success = true;
+            } catch (rpcErr) {
+                console.warn("RPC complaint submit fallback:", rpcErr);
+            }
+        }
+
+        if (!success) {
+            const { error: insertErr } = await supabaseClient.from('complaints').insert([{
+                id: 'cmp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                schoolId: currentSchoolId,
+                studentId: currentStudentUser.id,
+                studentName: currentStudentUser.name || 'Student',
+                studentMobile: currentStudentUser.mobile || '',
+                class: currentStudentUser.class || '',
+                target: target,
+                subject: subject,
+                description: description,
+                status: 'Pending',
+                createdAt: new Date().toISOString()
+            }]);
+            if (insertErr) throw insertErr;
+            success = true;
+        }
+
+        alert(`✅ Complaint successfully submitted to ${target}!\nYou can track status and responses below.`);
         event.target.reset();
-        window.openStudentView('student-main-grid');
+        await window.loadStudentComplaintsHistory();
     } catch (err) {
-        alert("Error submitting complaint: " + err.message);
+        console.error("submitStudentComplaint error:", err);
+        alert("Error submitting complaint: " + (err.message || err));
+    } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Submit Complaint"; }
     }
+};
+
+window.loadStudentBatchmates = async () => {
+    window.openStudentView('student-batchmate-section');
+    const container = $('batchmate-list-container');
+    const classTag = $('batchmate-class-tag');
+    if (classTag) classTag.innerText = currentStudentUser?.class || 'Class';
+    if (!container) return;
+
+    container.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:20px; color:#8fa3bf;"><i class="fas fa-spinner fa-spin"></i> Loading classmates...</div>`;
+
+    try {
+        const token = sessionStorage.getItem('studentToken');
+        let list = [];
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_batchmates', {
+                    p_token: token
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.batchmates)) {
+                    list = res.batchmates;
+                }
+            } catch (rpcEx) {
+                console.warn("RPC batchmates fallback:", rpcEx);
+            }
+        }
+
+        if (list.length === 0 && currentSchoolId && currentStudentUser?.class) {
+            const { data, error } = await supabaseClient
+                .from('students')
+                .select('id, name, class, rollNo, photoUrl, section')
+                .eq('schoolId', currentSchoolId)
+                .eq('class', currentStudentUser.class)
+                .eq('status', 'Approved')
+                .order('name', { ascending: true });
+            if (!error && data) list = data;
+        }
+
+        if (!list || list.length === 0) {
+            container.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:30px; color:#64748b;">No other batchmates found in ${sanitizeHtml(currentStudentUser?.class || 'your class')}.</div>`;
+            return;
+        }
+
+        let html = '';
+        list.forEach(s => {
+            const isMe = s.id === currentStudentUser?.id;
+            const photo = s.photoUrl || 'https://via.placeholder.com/100';
+            html += `<div class="p-4 bg-white border ${isMe ? 'border-indigo-400 bg-indigo-50/20' : 'border-gray-200'} rounded-xl shadow-sm flex items-center gap-3">
+                <img src="${sanitizeUrl(photo)}" alt="${sanitizeHtml(s.name)}" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #e2e8f0; background:#f1f5f9;">
+                <div class="flex-1 overflow-hidden">
+                    <h5 class="font-bold text-gray-800 text-sm truncate">${sanitizeHtml(s.name)} ${isMe ? '<span class="text-[10px] text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full font-bold ml-1">You</span>' : ''}</h5>
+                    <div class="text-xs text-gray-500 mt-0.5">Roll: <strong class="text-gray-700">${sanitizeHtml(s.rollNo || s.roll || 'N/A')}</strong></div>
+                    <div class="text-[11px] text-gray-400">${sanitizeHtml(s.class || '')} ${s.section ? '• Sec ' + sanitizeHtml(s.section) : ''}</div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+
+        // Also prep class chat
+        const chatTitle = $('class-chat-title');
+        if (chatTitle) chatTitle.innerText = `${currentStudentUser?.class || 'Class'} Discussion Room`;
+        window.loadClassChat();
+    } catch (e) {
+        console.error("loadStudentBatchmates error:", e);
+        container.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:20px; color:#ef4444;">Error loading batchmates.</div>`;
+    }
+};
+
+window.switchBatchmateSubTab = (tab) => {
+    const dirSub = $('batchmate-subtab-directory');
+    const chatSub = $('batchmate-subtab-chat');
+    const dirBtn = $('batch-tab-btn-dir');
+    const chatBtn = $('batch-tab-btn-chat');
+
+    if (tab === 'chat') {
+        if (dirSub) dirSub.style.display = 'none';
+        if (chatSub) chatSub.style.display = 'block';
+        if (dirBtn) { dirBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200'; }
+        if (chatBtn) { chatBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow'; }
+        window.loadClassChat();
+    } else {
+        if (dirSub) dirSub.style.display = 'block';
+        if (chatSub) chatSub.style.display = 'none';
+        if (dirBtn) { dirBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow'; }
+        if (chatBtn) { chatBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200'; }
+    }
+};
+
+window.loadClassChat = async () => {
+    const box = $('class-chat-box');
+    if (!box || !currentSchoolId || !currentStudentUser?.class) return;
+
+    try {
+        const token = sessionStorage.getItem('studentToken');
+        let messages = [];
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_class_chat_messages', {
+                    p_token: token
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.messages)) {
+                    messages = res.messages;
+                }
+            } catch (rpcEx) {
+                console.warn("RPC class chat fallback:", rpcEx);
+            }
+        }
+
+        if (messages.length === 0) {
+            const { data, error } = await supabaseClient
+                .from('class_chat_messages')
+                .select('*')
+                .eq('schoolId', currentSchoolId)
+                .eq('class', currentStudentUser.class)
+                .order('createdAt', { ascending: true })
+                .limit(100);
+            if (!error && data) messages = data;
+        }
+
+        if (messages.length === 0) {
+            box.innerHTML = `<div style="text-align:center; padding:30px 10px; color:#94a3b8; font-size:13px;">
+                <i class="fas fa-comments text-3xl mb-2 text-slate-300"></i>
+                <p>Welcome to ${sanitizeHtml(currentStudentUser?.class || 'Class')} discussion room!<br>Start a conversation with your classmates below.</p>
+            </div>`;
+            return;
+        }
+
+        let html = '';
+        messages.forEach(m => {
+            const isMe = m.studentId === currentStudentUser?.id;
+            const timeStr = m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            html += `<div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
+                <div style="font-size:11px; font-weight:700; color:${isMe ? '#4338ca' : '#475569'}; margin-bottom:2px; padding:0 4px;">
+                    ${isMe ? 'You' : sanitizeHtml(m.studentName || 'Classmate')}
+                </div>
+                <div style="max-width:80%; padding:10px 14px; border-radius:${isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background:${isMe ? '#4f46e5' : '#ffffff'}; color:${isMe ? '#ffffff' : '#1e293b'}; box-shadow:0 1px 3px rgba(0,0,0,0.06); border:${isMe ? 'none' : '1px solid #e2e8f0'}; font-size:13px; line-height:1.4; word-break:break-word;">
+                    ${sanitizeHtml(m.message || '')}
+                </div>
+                <div style="font-size:10px; color:#94a3b8; margin-top:2px; padding:0 4px;">${timeStr}</div>
+            </div>`;
+        });
+        box.innerHTML = html;
+        box.scrollTop = box.scrollHeight;
+    } catch (err) {
+        console.error("loadClassChat error:", err);
+    }
+};
+
+window.sendClassChatMessage = async (event) => {
+    event.preventDefault();
+    const input = $('class-chat-input');
+    const msg = input ? input.value.trim() : '';
+    const token = sessionStorage.getItem('studentToken');
+    const sendBtn = $('class-chat-send-btn');
+    if (!msg) return;
+
+    if (sendBtn) { sendBtn.disabled = true; }
+
+    try {
+        let sent = false;
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('send_class_chat_message', {
+                    p_token: token,
+                    p_message: msg
+                });
+                if (!rpcErr && res && res.success) sent = true;
+            } catch (rpcEx) {
+                console.warn("RPC send class chat fallback:", rpcEx);
+            }
+        }
+
+        if (!sent) {
+            const { error: insErr } = await supabaseClient.from('class_chat_messages').insert([{
+                id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                schoolId: currentSchoolId,
+                class: currentStudentUser.class,
+                studentId: currentStudentUser.id,
+                studentName: currentStudentUser.name || 'Student',
+                message: msg,
+                createdAt: new Date().toISOString()
+            }]);
+            if (insErr) throw insErr;
+        }
+
+        if (input) input.value = '';
+        await window.loadClassChat();
+    } catch (err) {
+        console.error("sendClassChatMessage error:", err);
+        alert("Failed to send message: " + (err.message || err));
+    } finally {
+        if (sendBtn) { sendBtn.disabled = false; }
+    }
+};
+
+window.loadStudentProfile = () => {
+    window.openStudentView('student-profile-section');
+    if (!currentStudentUser) return;
+
+    $('profile-name') && ($('profile-name').innerText = currentStudentUser.name || 'Student');
+    $('profile-class') && ($('profile-class').innerText = currentStudentUser.class || 'N/A');
+    $('profile-roll') && ($('profile-roll').innerText = 'Roll: ' + (currentStudentUser.rollNo || currentStudentUser.roll || 'N/A'));
+    $('profile-school') && ($('profile-school').innerText = currentStudentSchoolDoc?.schoolName || 'Institution');
+    $('profile-father') && ($('profile-father').innerText = currentStudentUser.parentage || currentStudentUser.fatherName || 'N/A');
+    $('profile-mother') && ($('profile-mother').innerText = currentStudentUser.motherName || 'N/A');
+    $('profile-dob') && ($('profile-dob').innerText = currentStudentUser.dob || 'N/A');
+    $('profile-mobile') && ($('profile-mobile').innerText = currentStudentUser.mobile || 'N/A');
+    $('profile-address') && ($('profile-address').innerText = currentStudentUser.address || 'N/A');
+    $('profile-photo') && ($('profile-photo').src = currentStudentUser.photoUrl || 'https://via.placeholder.com/100');
 };
 
 window.logoutStudent = () => {
