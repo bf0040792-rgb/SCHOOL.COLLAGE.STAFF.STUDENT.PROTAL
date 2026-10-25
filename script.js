@@ -2880,8 +2880,13 @@ window.loadStudentComplaints = async () => {
     try {
         const { data: rows, error } = await supabaseClient.from("complaints").select("*").eq("schoolId", currentSchoolId);
         if (error) throw error;
-        window.fetchedStudentComplaints = rows || [];
-        window.fetchedStudentComplaints.sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
+        // Strictly filter out complaints targeted to COREEDU.IN/Company so they only reach Company HQ
+        const schoolComplaints = (rows || []).filter(c => {
+            const t = (c.target || '').trim().toUpperCase();
+            return t !== 'COREEDU.IN' && t !== 'COREEDU TECH' && t !== 'COMPANY' && t !== 'SUPERADMIN';
+        });
+        window.fetchedStudentComplaints = schoolComplaints;
+        window.fetchedStudentComplaints.sort((a, b) => toEpochMillis(b.createdAt || b.timestamp) - toEpochMillis(a.createdAt || a.timestamp));
         window.renderStudentComplaints();
     } catch (e) {
         console.error("Load complaints failed:", e);
