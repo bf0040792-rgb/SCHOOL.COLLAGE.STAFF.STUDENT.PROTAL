@@ -4025,8 +4025,15 @@ window.updateStudentStatus = async (id, isNewAdmission) => {
 window.deleteStudent = async (id) => { 
     if (confirm("Delete this student permanently?")) { 
         try {
-            const { error: rpcError } = await supabaseClient.rpc('delete_student', { p_student_id: id });
-            if (rpcError) throw new Error(rpcError.message);
+            const st = (window.fetchedStudents || []).find(s => String(s.id) === String(id));
+            if (st && st._isNewAdmission) {
+                const { error } = await supabaseClient.from("admission_applications").delete().eq("id", id);
+                if (error) throw error;
+            } else {
+                const { error: rpcError } = await supabaseClient.rpc('delete_student', { p_student_id: id });
+                if (rpcError) throw new Error(rpcError.message);
+            }
+            alert("Student deleted successfully!");
             loadStudents(); 
         } catch (err) {
             alert("Error deleting student: " + (err.message || "Unknown error"));
