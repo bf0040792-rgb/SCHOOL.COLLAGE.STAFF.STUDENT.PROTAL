@@ -6714,6 +6714,7 @@ window.submitStudentComplaint = async (e) => {
     try {
         const token = sessionStorage.getItem('studentToken');
         let success = false;
+        let rpcErrorMsg = '';
         if (token) {
             try {
                 const { data: res, error: rpcErr } = await supabaseClient.rpc('submit_student_complaint', {
@@ -6724,6 +6725,9 @@ window.submitStudentComplaint = async (e) => {
                 });
                 if (!rpcErr && res && res.success) {
                     success = true;
+                } else {
+                    rpcErrorMsg = (res && res.error) || (rpcErr && rpcErr.message) || '';
+                    console.warn("RPC submit_student_complaint error:", rpcErrorMsg);
                 }
             } catch (err) {
                 console.warn("RPC submit_student_complaint fallback:", err);
@@ -6731,17 +6735,20 @@ window.submitStudentComplaint = async (e) => {
         }
 
         if (!success) {
+            if (rpcErrorMsg && rpcErrorMsg.toLowerCase().includes('session expired')) {
+                throw new Error("Aapka login session expire ho gaya hai. Barah-e-karam dobara login karein.");
+            }
             const { error } = await supabaseClient.from("complaints").insert({
                 schoolId: currentStudentSchoolDoc?.id || currentSchoolId,
-                studentId: currentStudentUser.id || currentStudentUser.regNo,
-                studentName: currentStudentUser.name,
-                studentMobile: currentStudentUser.mobile || "",
-                class: currentStudentUser.class || "",
-                section: currentStudentUser.section || "",
+                studentId: currentStudentUser?.id || currentStudentUser?.regNo || 'anonymous',
+                studentName: currentStudentUser?.name || 'Student',
+                studentMobile: currentStudentUser?.mobile || "",
+                class: currentStudentUser?.class || "",
+                section: currentStudentUser?.section || "",
                 data: {
-                    rollNo: currentStudentUser.rollNo || "",
-                    class: currentStudentUser.class || "",
-                    section: currentStudentUser.section || "",
+                    rollNo: currentStudentUser?.rollNo || "",
+                    class: currentStudentUser?.class || "",
+                    section: currentStudentUser?.section || "",
                     schoolName: currentStudentSchoolDoc?.schoolName || ""
                 },
                 target: target,
@@ -6750,7 +6757,7 @@ window.submitStudentComplaint = async (e) => {
                 timestamp: new Date().toISOString(),
                 status: 'Pending'
             });
-            if (error) throw error;
+            if (error) throw new Error(rpcErrorMsg || error.message || "Failed to submit complaint.");
         }
 
         alert("Complaint submitted successfully!");
@@ -6759,7 +6766,7 @@ window.submitStudentComplaint = async (e) => {
         window.openStudentView('student-main-grid');
     } catch (err) {
         console.error("Error submitting complaint:", err);
-        alert("Failed to submit complaint. Please try again.");
+        alert(err.message || "Failed to submit complaint. Please try again.");
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;

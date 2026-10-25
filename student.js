@@ -805,6 +805,7 @@ window.submitStudentComplaint = async (event) => {
 
     try {
         let success = false;
+        let rpcErrorMsg = '';
         if (token) {
             try {
                 const { data: res, error } = await supabaseClient.rpc('submit_student_complaint', {
@@ -813,17 +814,24 @@ window.submitStudentComplaint = async (event) => {
                     p_subject: subject,
                     p_description: description
                 });
-                if (!error && res && res.success) success = true;
+                if (!error && res && res.success) {
+                    success = true;
+                } else {
+                    rpcErrorMsg = (res && res.error) || (error && error.message) || '';
+                }
             } catch (rpcErr) {
                 console.warn("RPC complaint submit fallback:", rpcErr);
             }
         }
 
         if (!success) {
+            if (rpcErrorMsg && rpcErrorMsg.toLowerCase().includes('session expired')) {
+                throw new Error("Aapka login session expire ho gaya hai. Barah-e-karam dobara login karein.");
+            }
             const { error: insertErr } = await supabaseClient.from('complaints').insert([{
                 id: 'cmp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                 schoolId: currentStudentSchoolDoc?.id || currentSchoolId,
-                studentId: currentStudentUser?.id || currentStudentUser?.regNo,
+                studentId: currentStudentUser?.id || currentStudentUser?.regNo || 'anonymous',
                 studentName: currentStudentUser?.name || 'Student',
                 studentMobile: currentStudentUser?.mobile || '',
                 class: currentStudentUser?.class || '',
@@ -841,7 +849,7 @@ window.submitStudentComplaint = async (event) => {
                 timestamp: new Date().toISOString(),
                 createdAt: new Date().toISOString()
             }]);
-            if (insertErr) throw insertErr;
+            if (insertErr) throw new Error(rpcErrorMsg || insertErr.message || "Failed to submit complaint.");
             success = true;
         }
 
@@ -850,7 +858,7 @@ window.submitStudentComplaint = async (event) => {
         await window.loadStudentComplaintsHistory();
     } catch (err) {
         console.error("submitStudentComplaint error:", err);
-        alert("Error submitting complaint: " + (err.message || err));
+        alert(err.message || ("Error submitting complaint: " + (err.message || err)));
     } finally {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Submit Complaint"; }
     }
