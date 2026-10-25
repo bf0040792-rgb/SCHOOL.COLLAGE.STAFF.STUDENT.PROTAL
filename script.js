@@ -6736,6 +6736,14 @@ window.submitStudentComplaint = async (e) => {
                 studentId: currentStudentUser.id || currentStudentUser.regNo,
                 studentName: currentStudentUser.name,
                 studentMobile: currentStudentUser.mobile || "",
+                class: currentStudentUser.class || "",
+                section: currentStudentUser.section || "",
+                data: {
+                    rollNo: currentStudentUser.rollNo || "",
+                    class: currentStudentUser.class || "",
+                    section: currentStudentUser.section || "",
+                    schoolName: currentStudentSchoolDoc?.schoolName || ""
+                },
                 target: target,
                 subject: subject,
                 description: desc,

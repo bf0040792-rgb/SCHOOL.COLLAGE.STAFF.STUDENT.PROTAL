@@ -822,15 +822,23 @@ window.submitStudentComplaint = async (event) => {
         if (!success) {
             const { error: insertErr } = await supabaseClient.from('complaints').insert([{
                 id: 'cmp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                schoolId: currentSchoolId,
-                studentId: currentStudentUser.id,
-                studentName: currentStudentUser.name || 'Student',
-                studentMobile: currentStudentUser.mobile || '',
-                class: currentStudentUser.class || '',
+                schoolId: currentStudentSchoolDoc?.id || currentSchoolId,
+                studentId: currentStudentUser?.id || currentStudentUser?.regNo,
+                studentName: currentStudentUser?.name || 'Student',
+                studentMobile: currentStudentUser?.mobile || '',
+                class: currentStudentUser?.class || '',
+                section: currentStudentUser?.section || '',
+                data: {
+                    rollNo: currentStudentUser?.rollNo || '',
+                    class: currentStudentUser?.class || '',
+                    section: currentStudentUser?.section || '',
+                    schoolName: currentStudentSchoolDoc?.schoolName || ''
+                },
                 target: target,
                 subject: subject,
                 description: description,
                 status: 'Pending',
+                timestamp: new Date().toISOString(),
                 createdAt: new Date().toISOString()
             }]);
             if (insertErr) throw insertErr;
