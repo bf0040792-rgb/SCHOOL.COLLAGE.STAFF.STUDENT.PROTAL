@@ -367,7 +367,8 @@
 
         <div class="glass-login-box" id="create-pin-box" style="display:none;">
             <div class="pro-icon-container"><i class="fas fa-key"></i></div>
-            <h2 class="glass-login-title" style="font-size:1.4rem; letter-spacing:6px;">set pin</h2>
+            <h2 class="glass-login-title" id="pin-create-title" style="font-size:1.4rem; letter-spacing:6px;">set pin</h2>
+            <p id="pin-create-subtitle" style="font-size:11px; color:rgba(255,255,255,0.65); text-align:center; margin-bottom:14px; font-family:'JetBrains Mono',monospace;">Create your 4-digit security PIN</p>
             <div class="glass-input-group">
                 <div class="input-wrapper" style="justify-content:center;">
                     <input type="password" id="c_newPin" maxlength="4" placeholder="----"
@@ -381,7 +382,8 @@
 
         <div class="glass-login-box" id="enter-pin-box" style="display:none;">
             <div class="pro-icon-container"><i class="fas fa-unlock-alt"></i></div>
-            <h2 class="glass-login-title" style="font-size:1.4rem; letter-spacing:6px;">unlock</h2>
+            <h2 class="glass-login-title" id="pin-unlock-title" style="font-size:1.4rem; letter-spacing:6px;">unlock</h2>
+            <p id="pin-unlock-subtitle" style="font-size:11px; color:rgba(255,255,255,0.65); text-align:center; margin-bottom:14px; font-family:'JetBrains Mono',monospace;">Enter 4-digit PIN to access portal</p>
             <div class="glass-input-group">
                 <div class="input-wrapper" style="justify-content:center;">
                     <input type="password" id="c_loginPin" maxlength="4" placeholder="----"
@@ -2636,8 +2638,11 @@
                     style="display:none; width:36px; height:36px; border-radius:50%; object-fit:cover; margin-right:10px;">
                 <span id="student-dash-school-name" class="desktop-name" style="color: white;">School Portal</span>
             </div>
-            <button class="logout-btn" onclick="logoutStudent()" style="background:#e53e3e;"><i
-                    class="fas fa-power-off"></i> Logout</button>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="action-btn" onclick="window.promptChangeStudentPin()" style="background:rgba(255,255,255,0.18); color:white; padding:7px 12px; border-radius:8px; font-size:11px; font-weight:600; border:1px solid rgba(255,255,255,0.25); cursor:pointer;"><i class="fas fa-key"></i> Security PIN</button>
+                <button class="logout-btn" onclick="logoutStudent()" style="background:#e53e3e;"><i
+                        class="fas fa-power-off"></i> Logout</button>
+            </div>
         </div>
 
         <div
@@ -3095,6 +3100,7 @@
 <div class="menu-item nav-item cursor-pointer text-coolLight hover:text-white" data-target="staff-tab-leave" id="staff-menu-leave" style="min-height: 28px; padding: 5px 8px; font-size: 11px; transition: color 0.2s;"><span class="nav-glyph text-fuchsia-400" style="font-size:12px; margin-right:4px;"><i class="fas fa-calendar-minus"></i></span><span class="nav-label">Leave Request</span></div>
 <div class="menu-item nav-item cursor-pointer text-coolLight hover:text-white" data-target="staff-tab-profile" id="staff-menu-profile" style="min-height: 28px; padding: 5px 8px; font-size: 11px; transition: color 0.2s;"><span class="nav-glyph text-fuchsia-400" style="font-size:12px; margin-right:4px;"><i class="fas fa-user-circle"></i></span><span class="nav-label">My Profile</span></div>
 <div class="menu-item nav-item cursor-pointer text-coolLight hover:text-white" data-target="staff-tab-staff" id="staff-menu-staff" style="min-height: 28px; padding: 5px 8px; font-size: 11px; transition: color 0.2s;"><span class="nav-glyph text-fuchsia-400" style="font-size:12px; margin-right:4px;"><i class="fas fa-users"></i></span><span class="nav-label">Teachers</span></div>
+<div class="menu-item nav-item cursor-pointer text-coolLight hover:text-white" onclick="window.promptChangeStaffPin()" style="min-height: 28px; padding: 5px 8px; font-size: 11px; transition: color 0.2s;"><span class="nav-glyph text-fuchsia-400" style="font-size:12px; margin-right:4px;"><i class="fas fa-key"></i></span><span class="nav-label">Change PIN</span></div>
 <div class="logout-btn nav-item cursor-pointer text-coolLight hover:text-white" onclick="doLogout()" style="min-height: 28px; padding: 5px 8px; font-size: 11px; transition: color 0.2s;"><span class="nav-glyph text-fuchsia-400" style="font-size:12px; margin-right:4px;"><i class="fas fa-power-off"></i></span><span class="nav-label">Secure Logout</span></div>
 </div>
 <div class="flex items-center gap-4 mock-top-tools">

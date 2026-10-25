@@ -1085,6 +1085,7 @@ window.logoutStudent = () => {
     if (window.unsubStudentFeatureSettings) window.unsubStudentFeatureSettings();
     
     // Fully clear sensitive student state
+    localStorage.removeItem('studentToken');
     sessionStorage.removeItem('studentToken');
     supabaseClient = rebuildSupabaseClient();
     studentSessionEpoch += 1; // invalidate any in-flight response from this session

@@ -442,35 +442,155 @@ if (urlParams.get('isGhost') === 'true') {
 }
 
 // --- CHAIRMAN PIN UNLOCK LOGIC ---
-window.unlockChairmanDashboard = () => {
-    document.getElementById("pin-wrapper").style.display = "none";
-    dashboardWrapper.style.display = "flex";
-    initializeChairmanNavigation();
+window.pinActiveRole = 'chairman'; // 'chairman' | 'staff' | 'student'
 
-    const savedTab = sessionStorage.getItem('chairmanActiveTab');
-    window.switchTab(savedTab || 'tab-dashboard');
-};
-
-window.saveChairmanPin = async () => {
-    const pin = document.getElementById("c_newPin").value;
-    if (pin.length < 4) return alert("Please enter 4 digits");
-    const { error } = await supabaseClient.from("users").update({ pin: pin }).eq("id", currentUserId);
-    if (error) throw error;
-    window.currentChairmanPin = pin;
-    window.unlockChairmanDashboard();
-};
-
-window.verifyChairmanPin = () => {
-    const pin = document.getElementById("c_loginPin").value;
-    if (pin === window.currentChairmanPin) {
-        window.unlockChairmanDashboard();
+window.unlockActiveRoleDashboard = () => {
+    const pinWrap = document.getElementById("pin-wrapper");
+    if (pinWrap) pinWrap.style.display = "none";
+    if (window.pinActiveRole === 'staff') {
+        const sw = document.getElementById("staff-dashboard-wrapper");
+        if (sw) {
+            sw.classList.remove("hidden-el");
+            sw.style.display = "block";
+        }
+    } else if (window.pinActiveRole === 'student') {
+        if (typeof loadStudentDashboard === 'function') loadStudentDashboard();
     } else {
-        document.getElementById("c_pinErrorMsg").style.display = "block";
-        setTimeout(() => document.getElementById("c_pinErrorMsg").style.display = "none", 2000);
+        if (dashboardWrapper) {
+            dashboardWrapper.classList.remove("hidden-el");
+            dashboardWrapper.style.display = "flex";
+        }
+        if (typeof initializeChairmanNavigation === 'function') initializeChairmanNavigation();
+        const savedTab = sessionStorage.getItem('chairmanActiveTab');
+        if (typeof window.switchTab === 'function') window.switchTab(savedTab || 'tab-dashboard');
     }
 };
 
-window.logoutFromPin = () => supabaseClient.auth.signOut();
+window.unlockChairmanDashboard = () => {
+    window.pinActiveRole = 'chairman';
+    window.unlockActiveRoleDashboard();
+};
+
+window.unlockStaffDashboard = () => {
+    window.pinActiveRole = 'staff';
+    window.unlockActiveRoleDashboard();
+};
+
+window.unlockStudentDashboard = () => {
+    window.pinActiveRole = 'student';
+    window.unlockActiveRoleDashboard();
+};
+
+window.saveActiveRolePin = async () => {
+    const input = document.getElementById("c_newPin");
+    const pin = input ? input.value.trim() : '';
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) return alert("Please enter a valid 4-digit numeric PIN.");
+
+    try {
+        if (window.pinActiveRole === 'student') {
+            const token = localStorage.getItem('studentToken') || sessionStorage.getItem('studentToken');
+            if (!token) return alert("Student session not found. Please log in again.");
+            const { data: res, error } = await supabaseClient.rpc('set_student_pin', { p_token: token, p_pin: pin });
+            if (error || (res && !res.success)) throw new Error(res?.error || error?.message || "Failed to set PIN");
+            window.currentStudentPin = pin;
+            if (currentStudentUser) currentStudentUser.pin = pin;
+            alert("✅ 4-Digit Security PIN set successfully!");
+            window.unlockActiveRoleDashboard();
+        } else {
+            // Chairman or Staff
+            const { error } = await supabaseClient.from("users").update({ pin: pin }).eq("id", currentUserId);
+            if (error) throw error;
+            if (window.pinActiveRole === 'staff') {
+                window.currentStaffPin = pin;
+            } else {
+                window.currentChairmanPin = pin;
+            }
+            alert("✅ 4-Digit Security PIN set successfully!");
+            window.unlockActiveRoleDashboard();
+        }
+    } catch (err) {
+        console.error("saveActiveRolePin error:", err);
+        alert("Error saving PIN: " + (err.message || err));
+    }
+};
+window.saveChairmanPin = window.saveActiveRolePin;
+
+window.verifyActiveRolePin = () => {
+    const input = document.getElementById("c_loginPin");
+    const pin = input ? input.value.trim() : '';
+    let expectedPin = null;
+    if (window.pinActiveRole === 'staff') {
+        expectedPin = window.currentStaffPin;
+    } else if (window.pinActiveRole === 'student') {
+        expectedPin = window.currentStudentPin;
+    } else {
+        expectedPin = window.currentChairmanPin;
+    }
+
+    if (pin && String(pin) === String(expectedPin)) {
+        if (input) input.value = '';
+        window.unlockActiveRoleDashboard();
+    } else {
+        const err = document.getElementById("c_pinErrorMsg");
+        if (err) {
+            err.style.display = "block";
+            setTimeout(() => err.style.display = "none", 2000);
+        }
+    }
+};
+window.verifyChairmanPin = window.verifyActiveRolePin;
+
+window.logoutFromPin = async () => {
+    if (window.pinActiveRole === 'student') {
+        if (typeof window.logoutStudent === 'function') window.logoutStudent();
+    } else {
+        try { await supabaseClient.auth.signOut(); } catch (_) {}
+        if (typeof window.doLogout === 'function') window.doLogout();
+        else location.reload();
+    }
+};
+
+window.promptChangeStudentPin = () => {
+    window.pinActiveRole = 'student';
+    const sdw = document.getElementById("student-dashboard-wrapper");
+    if (sdw) sdw.style.display = "none";
+    document.getElementById("pin-wrapper").style.display = "flex";
+    document.getElementById("create-pin-box").style.display = "block";
+    document.getElementById("enter-pin-box").style.display = "none";
+    const np = document.getElementById("c_newPin");
+    if (np) { np.value = ""; np.focus(); }
+    const sub = document.getElementById("pin-create-subtitle");
+    if (sub) sub.innerText = "Set a new 4-digit security PIN for your Student account";
+};
+
+window.promptChangeStaffPin = () => {
+    window.pinActiveRole = 'staff';
+    const sdw = document.getElementById("staff-dashboard-wrapper");
+    if (sdw) sdw.style.display = "none";
+    document.getElementById("pin-wrapper").style.display = "flex";
+    document.getElementById("create-pin-box").style.display = "block";
+    document.getElementById("enter-pin-box").style.display = "none";
+    const np = document.getElementById("c_newPin");
+    if (np) { np.value = ""; np.focus(); }
+    const sub = document.getElementById("pin-create-subtitle");
+    if (sub) sub.innerText = "Set a new 4-digit security PIN for your Staff account";
+};
+
+// Automatic 4-digit submission & enter listeners
+['c_newPin', 'c_loginPin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            if (id === 'c_newPin') window.saveActiveRolePin();
+            else window.verifyActiveRolePin();
+        } else if (el.value.length === 4) {
+            if (id === 'c_loginPin') {
+                window.verifyActiveRolePin();
+            }
+        }
+    });
+});
 
 // ================= AUTH LOGIC (WITH PIN, LICENSE LOCK & SUPER ADMIN BYPASS) =================
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -546,6 +666,7 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 overlay.style.display = "none"; loginWrapper.style.display = "none";
 
                 // PIN LOGIC (Auto bypass for Super Admin)
+                window.pinActiveRole = 'chairman';
                 if (sessionStorage.getItem("is_impersonating") === "true") {
                     window.unlockChairmanDashboard();
                 } else {
@@ -553,11 +674,15 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
                         document.getElementById("pin-wrapper").style.display = "flex";
                         document.getElementById("enter-pin-box").style.display = "block";
                         document.getElementById("create-pin-box").style.display = "none";
+                        const sub = document.getElementById("pin-unlock-subtitle");
+                        if (sub) sub.innerText = "Chairman / Admin PIN Unlock";
                         window.currentChairmanPin = data.pin;
                     } else {
                         document.getElementById("pin-wrapper").style.display = "flex";
                         document.getElementById("create-pin-box").style.display = "block";
                         document.getElementById("enter-pin-box").style.display = "none";
+                        const sub = document.getElementById("pin-create-subtitle");
+                        if (sub) sub.innerText = "Set 4-Digit Security PIN for Chairman Portal";
                     }
                 }
 
@@ -603,7 +728,6 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 }
 
                 overlay.style.display = "none"; loginWrapper.style.display = "none";
-                document.getElementById("staff-dashboard-wrapper").style.display = "block";
                 document.getElementById("staff-school-name").innerText = data.schoolName;
                 document.getElementById("staff-welcome-name").innerText = data.name;
                 setRoleBadge('staff-role-badge', data.staffRole || 'Staff');
@@ -626,6 +750,27 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
                         if (window.onStaffTabOpen) window.onStaffTabOpen(item.dataset.target);
                     });
                 });
+
+                // STAFF PIN SYSTEM
+                window.pinActiveRole = 'staff';
+                if (sessionStorage.getItem("is_impersonating") === "true") {
+                    window.unlockStaffDashboard();
+                } else {
+                    if (data.pin) {
+                        document.getElementById("pin-wrapper").style.display = "flex";
+                        document.getElementById("enter-pin-box").style.display = "block";
+                        document.getElementById("create-pin-box").style.display = "none";
+                        const sub = document.getElementById("pin-unlock-subtitle");
+                        if (sub) sub.innerText = "Staff PIN Unlock (" + (data.name || "Staff") + ")";
+                        window.currentStaffPin = data.pin;
+                    } else {
+                        document.getElementById("pin-wrapper").style.display = "flex";
+                        document.getElementById("create-pin-box").style.display = "block";
+                        document.getElementById("enter-pin-box").style.display = "none";
+                        const sub = document.getElementById("pin-create-subtitle");
+                        if (sub) sub.innerText = "Set 4-Digit Security PIN for Staff Portal";
+                    }
+                }
 
             } else {
                 await supabaseClient.auth.signOut();
@@ -658,8 +803,11 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
                     showLoginScreen("Impersonation Failed: " + e.message);
                 });
         } else {
-            document.getElementById('auth-overlay').style.display = 'none';
-            showLoginScreen();
+            const resumed = await window.tryResumeStudentSession();
+            if (!resumed) {
+                document.getElementById('auth-overlay').style.display = 'none';
+                showLoginScreen();
+            }
         }
     }
 });
@@ -789,6 +937,9 @@ document.getElementById("updatePasswordBtn")?.addEventListener("click", async ()
 window.doLogout = () => {
     document.getElementById("staff-dashboard-wrapper").style.display = "none";
     document.getElementById("student-dashboard-wrapper").style.display = "none";
+    document.getElementById("pin-wrapper").style.display = "none";
+    window.currentChairmanPin = null;
+    window.currentStaffPin = null;
     supabaseClient.auth.signOut();
 };
 
@@ -7188,6 +7339,7 @@ window.doStudentPortalLogin = async (selectedSchoolId = null) => {
 
         const result = rpcRes;
         const accessToken = result.token || '';
+        localStorage.setItem('studentToken', accessToken);
         sessionStorage.setItem('studentToken', accessToken);
         studentPortalClient = createStudentPortalClient(accessToken);
         studentSessionEpoch += 1;
@@ -7196,7 +7348,26 @@ window.doStudentPortalLogin = async (selectedSchoolId = null) => {
         currentSchoolId = result.student.schoolId;
         currentStudentSchoolDoc = result.school;
         window.currentFeatureSettings = normalizeFeatureSettingsPayload(result.featureSettings || {});
-        loadStudentDashboard();
+
+        window.pinActiveRole = 'student';
+        window.currentStudentPin = result.student?.pin || null;
+
+        if (!window.currentStudentPin) {
+            overlay.style.display = "none";
+            loginWrapper.style.display = "none";
+            document.getElementById("dashboard-wrapper").style.display = "none";
+            document.getElementById("staff-dashboard-wrapper").style.display = "none";
+            document.getElementById("student-dashboard-wrapper").style.display = "none";
+            document.getElementById("pin-wrapper").style.display = "flex";
+            document.getElementById("create-pin-box").style.display = "block";
+            document.getElementById("enter-pin-box").style.display = "none";
+            const np = document.getElementById("c_newPin");
+            if (np) { np.value = ""; np.focus(); }
+            const sub = document.getElementById("pin-create-subtitle");
+            if (sub) sub.innerText = "Welcome " + (result.student?.name || "Student") + "! Set your 4-digit PIN";
+        } else {
+            loadStudentDashboard();
+        }
     } catch (error) {
         console.error("Student Login Error:", error.message);
         if (errBox) {
@@ -7208,6 +7379,66 @@ window.doStudentPortalLogin = async (selectedSchoolId = null) => {
         if (btn && (!picker || picker.style.display === 'none')) {
             btn.querySelector('span').innerText = "Access Portal";
         }
+    }
+};
+
+window.tryResumeStudentSession = async () => {
+    try {
+        const { data: authSessionData } = await supabaseClient.auth.getSession();
+        if (authSessionData?.session?.user) return false;
+    } catch (_) {}
+
+    const token = localStorage.getItem('studentToken') || sessionStorage.getItem('studentToken');
+    if (!token) return false;
+
+    try {
+        const { data: res, error } = await supabaseClient.rpc('resume_student_portal_session', { p_token: token });
+        if (error || !res || !res.success) {
+            localStorage.removeItem('studentToken');
+            sessionStorage.removeItem('studentToken');
+            return false;
+        }
+
+        localStorage.setItem('studentToken', token);
+        sessionStorage.setItem('studentToken', token);
+        studentPortalClient = createStudentPortalClient(token);
+        studentSessionEpoch += 1;
+
+        currentStudentUser = res.student;
+        currentSchoolId = res.student?.schoolId;
+        currentStudentSchoolDoc = res.school;
+        window.currentFeatureSettings = normalizeFeatureSettingsPayload(res.featureSettings || {});
+
+        window.pinActiveRole = 'student';
+        window.currentStudentPin = res.pin || res.student?.pin || null;
+
+        overlay.style.display = "none";
+        loginWrapper.style.display = "none";
+        document.getElementById("dashboard-wrapper").style.display = "none";
+        document.getElementById("staff-dashboard-wrapper").style.display = "none";
+        document.getElementById("student-dashboard-wrapper").style.display = "none";
+
+        if (window.currentStudentPin) {
+            document.getElementById("pin-wrapper").style.display = "flex";
+            document.getElementById("enter-pin-box").style.display = "block";
+            document.getElementById("create-pin-box").style.display = "none";
+            const lp = document.getElementById("c_loginPin");
+            if (lp) { lp.value = ""; lp.focus(); }
+            const sub = document.getElementById("pin-unlock-subtitle");
+            if (sub) sub.innerText = "Student PIN Unlock (" + (res.student?.name || "Student") + ")";
+        } else {
+            document.getElementById("pin-wrapper").style.display = "flex";
+            document.getElementById("create-pin-box").style.display = "block";
+            document.getElementById("enter-pin-box").style.display = "none";
+            const np = document.getElementById("c_newPin");
+            if (np) { np.value = ""; np.focus(); }
+            const sub = document.getElementById("pin-create-subtitle");
+            if (sub) sub.innerText = "Welcome " + (res.student?.name || "Student") + "! Set your 4-digit PIN";
+        }
+        return true;
+    } catch (e) {
+        console.warn("Failed to resume student session:", e);
+        return false;
     }
 };
 
@@ -7429,14 +7660,14 @@ if (svForm) svForm.addEventListener("submit", async (e) => {
 });
 
 window.logoutStudent = () => {
-    // Drop the student JWT client FIRST so nothing queued after this point can send the
-    // previous student's token. `currentSchoolId` stays untouched: it belongs to the
-    // chairman/staff session that may still be active in this browser.
+    localStorage.removeItem('studentToken');
+    sessionStorage.removeItem('studentToken');
     studentPortalClient = null;
     studentSessionEpoch += 1;
     window.studentReceiptCache = null;
     currentStudentUser = null;
     currentStudentSchoolDoc = null;
+    window.currentStudentPin = null;
     if (smsChatPollTimer) clearInterval(smsChatPollTimer);
     activeSmsBatchmates = [];
     activeSmsRecipient = null;
@@ -7449,6 +7680,8 @@ window.logoutStudent = () => {
     document.getElementById("student-success-section").style.display = "none";
     const smsSection = document.getElementById("student-sms-section");
     if (smsSection) smsSection.style.display = "none";
+    const pinWrapper = document.getElementById("pin-wrapper");
+    if (pinWrapper) pinWrapper.style.display = "none";
     showLoginScreen();
 };
 
