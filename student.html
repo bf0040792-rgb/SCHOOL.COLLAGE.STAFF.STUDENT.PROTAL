@@ -359,6 +359,67 @@
                 </div>
             </div>
 
+            <!-- SMS / DIRECT MESSAGES SECTION -->
+            <div id="student-sms-section" class="student-view-section card" style="display: none; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); margin-bottom:20px;">
+                <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+                
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-3 pb-3 border-b border-gray-100">
+                    <div>
+                        <h3 class="text-xl font-bold text-[#1E3A8A] flex items-center gap-2"><i class="fas fa-message text-blue-600"></i> SMS & Batchmate Chat</h3>
+                        <p class="text-xs text-gray-500">Select any batchmate from your class to chat directly one-on-one.</p>
+                    </div>
+                </div>
+
+                <!-- 2-Column Chat Layout -->
+                <div class="border border-gray-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col md:flex-row" style="height:540px;">
+                    <!-- LEFT COLUMN: Batchmates List -->
+                    <div class="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col" style="max-height: 200px; md:max-height: none;">
+                        <div class="p-3 border-b border-gray-100 bg-slate-50">
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-3 top-3 text-gray-400 text-xs"></i>
+                                <input type="text" id="sms-batchmate-search" oninput="window.filterSmsBatchmates(this.value)" placeholder="Search batchmate..." class="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-gray-200 bg-white outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <div id="sms-batchmates-list" class="flex-1 overflow-y-auto divide-y divide-gray-100">
+                            <div class="p-4 text-center text-xs text-gray-400">Loading batchmates...</div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Active Chat Conversation -->
+                    <div class="w-full md:w-2/3 flex flex-col bg-slate-50 flex-1">
+                        <!-- Active Chat Header -->
+                        <div id="sms-chat-header" class="p-3.5 bg-white border-b border-gray-200 flex items-center justify-between shadow-sm">
+                            <div class="flex items-center gap-3">
+                                <img id="sms-active-avatar" src="https://via.placeholder.com/100" style="width:38px; height:38px; border-radius:50%; object-fit:cover; border:2px solid #e2e8f0; background:#f1f5f9;">
+                                <div>
+                                    <h4 id="sms-active-name" class="font-bold text-gray-800 text-sm">Select a batchmate</h4>
+                                    <div id="sms-active-sub" class="text-[11px] text-green-600 font-semibold"><i class="fas fa-circle text-[8px]"></i> Active Conversation</div>
+                                </div>
+                            </div>
+                            <button type="button" onclick="window.refreshActiveSmsChat()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-semibold px-2.5 py-1 rounded-lg bg-blue-50">
+                                <i class="fas fa-rotate"></i> Refresh
+                            </button>
+                        </div>
+
+                        <!-- Chat Messages Container -->
+                        <div id="sms-chat-box" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3" style="background:#f8fafc;">
+                            <div class="m-auto text-center text-gray-400 text-xs">
+                                <i class="fas fa-comments text-3xl mb-2 text-gray-300"></i>
+                                <p>Select a batchmate from the left to start chatting.</p>
+                            </div>
+                        </div>
+
+                        <!-- Message Input Form -->
+                        <form id="sms-chat-form" onsubmit="window.sendStudentDirectMessage(event)" class="p-3 bg-white border-t border-gray-200 flex gap-2">
+                            <input type="text" id="sms-chat-input" placeholder="Type a message to your batchmate..." required autocomplete="off" class="flex-1 p-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                            <button type="submit" id="sms-chat-send-btn" class="px-5 py-2.5 bg-[#1E3A8A] text-white font-bold rounded-xl text-sm shadow hover:bg-blue-800 transition flex items-center gap-1.5">
+                                <i class="fas fa-paper-plane"></i> Send
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
             <!-- STUDENT PROFILE SECTION -->
             <div id="student-profile-section" class="student-view-section card" style="display: none; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); margin-bottom:20px;">
                 <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>

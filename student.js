@@ -228,6 +228,7 @@ window.handleStudentFeatureClick = (featureId) => {
     if (featureId === 'fee-receipt') return window.showStudentReceiptsSection();
     if (featureId === 'complaint') return window.openStudentComplaintSection();
     if (featureId === 'batchmate') return window.loadStudentBatchmates();
+    if (featureId === 'sms') return window.loadStudentSms();
     
     // Dispatch to implementation functions
     if (featureId === 'homework') return window.loadStudentHomework();
@@ -898,7 +899,10 @@ window.loadStudentBatchmates = async () => {
             html += `<div class="p-4 bg-white border ${isMe ? 'border-indigo-400 bg-indigo-50/20' : 'border-gray-200'} rounded-xl shadow-sm flex items-center gap-3">
                 <img src="${sanitizeUrl(photo)}" alt="${sanitizeHtml(s.name)}" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #e2e8f0; background:#f1f5f9;">
                 <div class="flex-1 overflow-hidden">
-                    <h5 class="font-bold text-gray-800 text-sm truncate">${sanitizeHtml(s.name)} ${isMe ? '<span class="text-[10px] text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full font-bold ml-1">You</span>' : ''}</h5>
+                    <div class="flex justify-between items-start gap-1">
+                        <h5 class="font-bold text-gray-800 text-sm truncate">${sanitizeHtml(s.name)} ${isMe ? '<span class="text-[10px] text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full font-bold ml-1">You</span>' : ''}</h5>
+                        ${!isMe ? `<button onclick="window.startSmsWithBatchmate('${s.id}')" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-[#1E3A8A] hover:bg-blue-100 flex items-center gap-1 transition shadow-sm border border-blue-200"><i class="fas fa-comment-dots"></i> SMS</button>` : ''}
+                    </div>
                     <div class="text-xs text-gray-500 mt-0.5">Roll: <strong class="text-gray-700">${sanitizeHtml(s.rollNo || s.roll || 'N/A')}</strong></div>
                     <div class="text-[11px] text-gray-400">${sanitizeHtml(s.class || '')} ${s.section ? '• Sec ' + sanitizeHtml(s.section) : ''}</div>
                 </div>
@@ -1665,6 +1669,263 @@ window.downloadStudentAdmitCard = () => {
 
 window.downloadStudentIDCard = () => {
     window.print();
+};
+
+// ====== SMS & DIRECT BATCHMATE CHAT ======
+let activeSmsBatchmates = [];
+let activeSmsRecipient = null;
+let smsChatPollTimer = null;
+
+window.loadStudentSms = async (targetBatchmateId = null) => {
+    window.openStudentView('student-sms-section');
+    const listContainer = $('sms-batchmates-list');
+    if (listContainer) {
+        listContainer.innerHTML = '<div class="p-4 text-center text-xs text-gray-400"><i class="fas fa-spinner fa-spin"></i> Loading batchmates...</div>';
+    }
+
+    try {
+        const token = sessionStorage.getItem('studentToken');
+        let batchmates = [];
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_batchmates', { p_token: token });
+                if (!rpcErr && res && res.success && Array.isArray(res.batchmates)) {
+                    batchmates = res.batchmates;
+                }
+            } catch (ex) {
+                console.warn("RPC batchmates in sms error:", ex);
+            }
+        }
+
+        if (batchmates.length === 0 && currentSchoolId && currentStudentUser?.class) {
+            let q = supabaseClient.from('students').select('id, name, class, rollNo, photoUrl, section, departmentId')
+                .eq('schoolId', currentSchoolId)
+                .eq('class', currentStudentUser.class)
+                .eq('status', 'Approved');
+            if (currentStudentUser.departmentId) q = q.eq('departmentId', currentStudentUser.departmentId);
+            const { data } = await q.order('name', { ascending: true });
+            if (data) batchmates = data;
+        }
+
+        // Filter out self
+        activeSmsBatchmates = (batchmates || []).filter(b => String(b.id) !== String(currentStudentUser?.id));
+        window.renderSmsBatchmatesList(activeSmsBatchmates);
+
+        // Pre-select target or first
+        if (targetBatchmateId) {
+            window.selectSmsBatchmate(targetBatchmateId);
+        } else if (activeSmsBatchmates.length > 0) {
+            window.selectSmsBatchmate(activeSmsBatchmates[0].id);
+        } else {
+            const chatBox = $('sms-chat-box');
+            if (chatBox) {
+                chatBox.innerHTML = '<div class="m-auto text-center text-gray-400 text-xs"><i class="fas fa-user-slash text-3xl mb-2 text-gray-300"></i><p>No other batchmates found in your class/department.</p></div>';
+            }
+        }
+    } catch (e) {
+        console.error("loadStudentSms error:", e);
+    }
+};
+
+window.renderSmsBatchmatesList = (list) => {
+    const listContainer = $('sms-batchmates-list');
+    if (!listContainer) return;
+
+    if (!list || list.length === 0) {
+        listContainer.innerHTML = '<div class="p-4 text-center text-xs text-gray-400">No batchmates found.</div>';
+        return;
+    }
+
+    let html = '';
+    list.forEach(b => {
+        const isSelected = activeSmsRecipient && String(activeSmsRecipient.id) === String(b.id);
+        const photo = b.photoUrl || 'https://via.placeholder.com/100';
+        html += `<div onclick="window.selectSmsBatchmate('${b.id}')" class="p-3 flex items-center gap-3 cursor-pointer transition ${isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : 'hover:bg-gray-50'}">
+            <img src="${sanitizeUrl(photo)}" alt="${sanitizeHtml(b.name)}" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:1px solid #e2e8f0; background:#f1f5f9;">
+            <div class="flex-1 overflow-hidden">
+                <div class="font-bold text-gray-800 text-xs truncate">${sanitizeHtml(b.name)}</div>
+                <div class="text-[11px] text-gray-500">Roll: ${sanitizeHtml(b.rollNo || 'N/A')}</div>
+            </div>
+            <i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+        </div>`;
+    });
+    listContainer.innerHTML = html;
+};
+
+window.filterSmsBatchmates = (query) => {
+    const q = (query || '').toLowerCase().trim();
+    if (!q) {
+        window.renderSmsBatchmatesList(activeSmsBatchmates);
+        return;
+    }
+    const filtered = activeSmsBatchmates.filter(b => 
+        (b.name && b.name.toLowerCase().includes(q)) ||
+        (b.rollNo && String(b.rollNo).includes(q))
+    );
+    window.renderSmsBatchmatesList(filtered);
+};
+
+window.selectSmsBatchmate = async (batchmateId) => {
+    const b = activeSmsBatchmates.find(item => String(item.id) === String(batchmateId));
+    if (!b) return;
+    activeSmsRecipient = b;
+    window.renderSmsBatchmatesList(activeSmsBatchmates);
+
+    // Update active header
+    const nameEl = $('sms-active-name');
+    const avatarEl = $('sms-active-avatar');
+    const subEl = $('sms-active-sub');
+    if (nameEl) nameEl.innerText = b.name || "Batchmate";
+    if (avatarEl) avatarEl.src = sanitizeUrl(b.photoUrl || 'https://via.placeholder.com/100');
+    if (subEl) subEl.innerHTML = `<i class="fas fa-circle text-[8px]"></i> Roll: ${sanitizeHtml(b.rollNo || 'N/A')} · ${sanitizeHtml(b.class || '')}`;
+
+    await window.loadDirectMessagesForActive();
+
+    // Focus input
+    const input = $('sms-chat-input');
+    if (input) input.focus();
+
+    // Auto-poll every 5 seconds for new messages while section is active
+    if (smsChatPollTimer) clearInterval(smsChatPollTimer);
+    smsChatPollTimer = setInterval(() => {
+        const sec = $('student-sms-section');
+        if (sec && sec.style.display !== 'none' && activeSmsRecipient) {
+            window.loadDirectMessagesForActive(true); // background silent fetch
+        } else {
+            clearInterval(smsChatPollTimer);
+        }
+    }, 5000);
+};
+
+window.loadDirectMessagesForActive = async (silent = false) => {
+    if (!activeSmsRecipient) return;
+    const box = $('sms-chat-box');
+    if (!box) return;
+
+    if (!silent) {
+        box.innerHTML = '<div class="m-auto text-center text-xs text-gray-400"><i class="fas fa-spinner fa-spin"></i> Loading conversation...</div>';
+    }
+
+    try {
+        const token = sessionStorage.getItem('studentToken');
+        let messages = [];
+
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('get_student_direct_messages', {
+                    p_token: token,
+                    p_other_student_id: activeSmsRecipient.id
+                });
+                if (!rpcErr && res && res.success && Array.isArray(res.messages)) {
+                    messages = res.messages;
+                }
+            } catch (ex) {
+                console.warn("RPC direct messages fallback:", ex);
+            }
+        }
+
+        if (messages.length === 0 && currentSchoolId && currentStudentUser?.id) {
+            const { data } = await supabaseClient
+                .from('student_direct_messages')
+                .select('*')
+                .eq('schoolId', currentSchoolId)
+                .or(`and(senderId.eq.${currentStudentUser.id},receiverId.eq.${activeSmsRecipient.id}),and(senderId.eq.${activeSmsRecipient.id},receiverId.eq.${currentStudentUser.id})`)
+                .order('createdAt', { ascending: true })
+                .limit(200);
+            if (data) messages = data;
+        }
+
+        if (!messages || messages.length === 0) {
+            box.innerHTML = `<div class="m-auto text-center text-gray-400 text-xs">
+                <i class="fas fa-paper-plane text-2xl text-blue-300 mb-2"></i>
+                <p>No messages yet with <strong>${sanitizeHtml(activeSmsRecipient.name)}</strong>.</p>
+                <p class="text-[11px] text-gray-400 mt-1">Send a message below to start the conversation!</p>
+            </div>`;
+            return;
+        }
+
+        let html = '';
+        messages.forEach(m => {
+            const isMe = String(m.senderId) === String(currentStudentUser?.id);
+            const timeStr = m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            html += `<div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
+                <div style="font-size:10px; font-weight:700; color:${isMe ? '#1E3A8A' : '#64748b'}; margin-bottom:2px; padding:0 4px;">
+                    ${isMe ? 'You' : sanitizeHtml(m.senderName || activeSmsRecipient.name)}
+                </div>
+                <div style="max-width:78%; padding:10px 14px; border-radius:${isMe ? '16px 16px 3px 16px' : '16px 16px 16px 3px'}; background:${isMe ? '#1E3A8A' : '#ffffff'}; color:${isMe ? '#ffffff' : '#1e293b'}; box-shadow:0 1px 3px rgba(0,0,0,0.06); border:${isMe ? 'none' : '1px solid #e2e8f0'}; font-size:13px; line-height:1.4; word-break:break-word;">
+                    ${sanitizeHtml(m.message || '')}
+                </div>
+                <div style="font-size:10px; color:#94a3b8; margin-top:2px; padding:0 4px;">${timeStr}</div>
+            </div>`;
+        });
+
+        box.innerHTML = html;
+        box.scrollTop = box.scrollHeight;
+    } catch (e) {
+        console.error("loadDirectMessagesForActive error:", e);
+    }
+};
+
+window.refreshActiveSmsChat = async () => {
+    await window.loadDirectMessagesForActive(false);
+};
+
+window.sendStudentDirectMessage = async (event) => {
+    event.preventDefault();
+    if (!activeSmsRecipient) {
+        alert("Please select a batchmate to send SMS.");
+        return;
+    }
+
+    const input = $('sms-chat-input');
+    const msg = input ? input.value.trim() : '';
+    if (!msg) return;
+
+    const btn = $('sms-chat-send-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const token = sessionStorage.getItem('studentToken');
+        let sent = false;
+
+        if (token) {
+            try {
+                const { data: res, error: rpcErr } = await supabaseClient.rpc('send_student_direct_message', {
+                    p_token: token,
+                    p_receiver_id: activeSmsRecipient.id,
+                    p_message: msg
+                });
+                if (!rpcErr && res && res.success) sent = true;
+            } catch (ex) {
+                console.warn("RPC send_student_direct_message fallback:", ex);
+            }
+        }
+
+        if (!sent) {
+            const { error: insErr } = await supabaseClient.from('student_direct_messages').insert([{
+                id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                schoolId: currentSchoolId,
+                senderId: currentStudentUser.id,
+                senderName: currentStudentUser.name || 'Student',
+                receiverId: activeSmsRecipient.id,
+                receiverName: activeSmsRecipient.name || 'Batchmate',
+                message: msg,
+                createdAt: new Date().toISOString()
+            }]);
+            if (insErr) throw insErr;
+        }
+
+        if (input) input.value = '';
+        await window.loadDirectMessagesForActive(true);
+    } catch (e) {
+        alert("Error sending message: " + (e.message || "Failed"));
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.startSmsWithBatchmate = async (batchmateId) => {
+    await window.loadStudentSms(batchmateId);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
