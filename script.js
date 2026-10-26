@@ -746,6 +746,8 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 // -----------------------------------------
 
                 document.getElementById('top-school-name').innerText = data.schoolName;
+                if (document.getElementById('side-school-name')) document.getElementById('side-school-name').innerText = data.schoolName;
+                if (typeof window.updateInstitutionRoleLabels === 'function') window.updateInstitutionRoleLabels();
                 setRoleBadge('dashboard-role-badge', data.staffRole || 'Chairman');
                 const reqOp = document.getElementById('req_old_pass'); if(reqOp) reqOp.value = data.plainPassword || '******';
 
@@ -1105,6 +1107,12 @@ async function checkAdmissionStatus() {
     const { data, error } = await supabaseClient.from("schools").select("*").eq("id", currentSchoolId).maybeSingle();
     if (error) console.error("School settings lookup failed:", error);
     if (data) {
+        if (data.schoolName || data.name) {
+            currentSchoolName = data.schoolName || data.name;
+            if (document.getElementById('top-school-name')) document.getElementById('top-school-name').innerText = currentSchoolName;
+            if (document.getElementById('side-school-name')) document.getElementById('side-school-name').innerText = currentSchoolName;
+            if (typeof window.updateInstitutionRoleLabels === 'function') window.updateInstitutionRoleLabels();
+        }
         if (data.idTemplateUrl) { currentIdTemplateUrl = data.idTemplateUrl; }
         if (data.idTemplateStyle) {
             currentTemplateStyle = data.idTemplateStyle;
@@ -2974,7 +2982,66 @@ window.toggleSingleFeature = async (group, key, enabled) => {
 
 // ====== ID CARD LIVE STUDIO & REAL-TIME PREVIEW CONTROLLER ======
 window.settingsPreviewStudentIndex = 0;
-window.defaultPreviewStudents = [
+
+window.defaultCollegePreviewStudents = [
+    {
+        name: "Shahid Zahoor Chopan",
+        class: "1st Semester",
+        rollNo: "501260048",
+        regNo: "REG-2026-COL-01",
+        dob: "14/08/2005",
+        parentage: "Zahoor Ahmad Chopan",
+        mobile: "+91 91033 69975",
+        address: "Tekipora (Lolab), Kupwara",
+        photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
+    },
+    {
+        name: "Shakir Ahmad Lone",
+        class: "1st Semester",
+        rollNo: "501260020",
+        regNo: "REG-2026-COL-02",
+        dob: "22/01/2004",
+        parentage: "Mohammad Akbar Lone",
+        mobile: "+91 97654 32109",
+        address: "Dapal Machil, Kupwara",
+        photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80"
+    },
+    {
+        name: "Zoya Farooq",
+        class: "3rd Semester - BCA",
+        rollNo: "501260033",
+        regNo: "REG-2026-COL-03",
+        dob: "11/04/2004",
+        parentage: "Mohammad Farooq",
+        mobile: "+91 99223 34455",
+        address: "Main College Road, Kupwara",
+        photoUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80"
+    }
+];
+
+window.defaultSchoolPreviewStudents = [
+    {
+        name: "FAISAL AHMED BHAT",
+        class: "12th",
+        rollNo: "501260055",
+        regNo: "2512",
+        dob: "10/08/2008",
+        parentage: "MOHAMMAD MAQBOOL BHAT",
+        mobile: "+91 91033 69975",
+        address: "GUNDIMANCHER LOLAB",
+        photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
+    },
+    {
+        name: "ADNAN ISHFAQ BHAT",
+        class: "12th",
+        rollNo: "50126001",
+        regNo: "2513",
+        dob: "15/03/2008",
+        parentage: "ISHFAQ AHMAD BHAT",
+        mobile: "+91 98112 23344",
+        address: "GUNDIMANCHER LOLAB",
+        photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80"
+    },
     {
         name: "Aarav Sharma",
         class: "10th - A",
@@ -2983,68 +3050,80 @@ window.defaultPreviewStudents = [
         dob: "14/08/2009",
         parentage: "Rajesh Sharma",
         mobile: "+91 98765 43210",
-        address: "Green Park, Sector 4, New Delhi",
+        address: "Green Park, Sector 4",
         photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
-    },
-    {
-        name: "Zoya Khan",
-        class: "12th - Science",
-        rollNo: "1205",
-        regNo: "REG-2026-112",
-        dob: "22/01/2008",
-        parentage: "Mohammad Farooq Khan",
-        mobile: "+91 97654 32109",
-        address: "Rose Avenue, Flat 3B, Srinagar",
-        photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80"
-    },
-    {
-        name: "Rohan Verma",
-        class: "9th - B",
-        rollNo: "9042",
-        regNo: "REG-2026-045",
-        dob: "05/11/2010",
-        parentage: "Suresh Verma",
-        mobile: "+91 98112 23344",
-        address: "Civil Lines, House 12, Lucknow",
-        photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80"
-    },
-    {
-        name: "Ananya Patel",
-        class: "11th - Commerce",
-        rollNo: "1118",
-        regNo: "REG-2026-198",
-        dob: "30/03/2009",
-        parentage: "Mahesh Patel",
-        mobile: "+91 99223 34455",
-        address: "Heritage Enclave, Block C, Ahmedabad",
-        photoUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80"
     }
 ];
 
+window.updateInstitutionRoleLabels = () => {
+    const isCollege = (typeof institutionIsCollege === 'function' && institutionIsCollege()) ||
+        currentInstitutionType === 'college' ||
+        (currentSchoolName && /college/i.test(currentSchoolName));
+
+    const sideBadge = document.getElementById('side-admin-role-badge') || document.querySelector('.sidebar-subtitle');
+    if (sideBadge) {
+        sideBadge.innerHTML = isCollege 
+            ? '<i class="fas fa-shield-alt"></i> COLLAGE ADMIN' 
+            : '<i class="fas fa-shield-alt"></i> SCHOOL / ADMIN';
+    }
+
+    const roleFooter = document.getElementById('role-footer');
+    if (roleFooter) {
+        roleFooter.innerText = isCollege 
+            ? 'System Access: COLLAGE AUTHORITY' 
+            : 'System Access: SCHOOL AUTHORITY';
+    }
+
+    if (currentSchoolName) {
+        const topEl = document.getElementById('top-school-name');
+        if (topEl) topEl.innerText = currentSchoolName;
+        const sideEl = document.getElementById('side-school-name');
+        if (sideEl) sideEl.innerText = currentSchoolName;
+    }
+};
+
+window.getSettingsPreviewPool = () => {
+    // 1. Strict Priority: This school/college's OWN real students from window.fetchedStudents
+    if (Array.isArray(window.fetchedStudents) && window.fetchedStudents.length > 0) {
+        const ownActiveStudents = window.fetchedStudents.filter(s => s && s.name && s.status !== 'Rejected');
+        if (ownActiveStudents.length > 0) {
+            return ownActiveStudents;
+        }
+    }
+
+    // 2. Fallback: Institution-specific demo students (College vs School)
+    const isCollege = (typeof institutionIsCollege === 'function' && institutionIsCollege()) ||
+        currentInstitutionType === 'college' ||
+        (currentSchoolName && /college/i.test(currentSchoolName));
+
+    return isCollege ? window.defaultCollegePreviewStudents : window.defaultSchoolPreviewStudents;
+};
+
 window.getSettingsPreviewStudent = () => {
-    const pool = (Array.isArray(window.allStudents) && window.allStudents.length > 0)
-        ? window.allStudents
-        : window.defaultPreviewStudents;
+    const pool = window.getSettingsPreviewPool();
     const idx = (window.settingsPreviewStudentIndex || 0) % pool.length;
-    const st = pool[idx];
+    const raw = pool[idx];
+    const st = (raw && raw.data) ? { ...raw, ...raw.data } : raw;
+    const isCollege = (typeof institutionIsCollege === 'function' && institutionIsCollege()) ||
+        currentInstitutionType === 'college' ||
+        (currentSchoolName && /college/i.test(currentSchoolName));
+
     return {
         id: st.id || st.regNo || "PREV-01",
-        rollNo: st.rollNo || st.roll_no || st.rollCode || "101",
-        regNo: st.regNo || st.reg_no || "REG-101",
-        name: st.name || "Sample Student",
-        class: st.class || "10th",
-        dob: st.dob || "15/08/2009",
-        parentage: st.parentage || st.fatherName || "Guardian Name",
-        mobile: st.mobile || "+91 9876543210",
-        address: st.address || "Main Campus Road",
-        photoUrl: st.photoUrl || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
+        rollNo: st.rollNo || st.roll_no || st.rollCode || "",
+        regNo: st.regNo || st.reg_no || "",
+        name: st.name || "Student Name",
+        class: st.class || (isCollege ? "1st Semester" : "10th"),
+        dob: st.dob || "N/A",
+        parentage: st.parentage || st.fatherName || "N/A",
+        mobile: st.mobile || "N/A",
+        address: st.address || "N/A",
+        photoUrl: st.photoUrl || st.photo_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
     };
 };
 
 window.cycleSettingsPreviewStudent = () => {
-    const pool = (Array.isArray(window.allStudents) && window.allStudents.length > 0)
-        ? window.allStudents
-        : window.defaultPreviewStudents;
+    const pool = window.getSettingsPreviewPool();
     window.settingsPreviewStudentIndex = ((window.settingsPreviewStudentIndex || 0) + 1) % pool.length;
     window.updateSettingsLivePreview();
 };
@@ -3062,6 +3141,20 @@ window.updateSettingsLivePreview = async (overrideStyle) => {
     const previewLoader = document.getElementById("settings_preview_loader");
     const previewNameBadge = document.getElementById("preview-student-name");
     if (!previewImg) return;
+
+    // Load institution's own students if not yet loaded in memory
+    if (!window.fetchedStudents || window.fetchedStudents.length === 0) {
+        if (typeof loadStudents === 'function') {
+            try {
+                await loadStudents();
+            } catch(e) { }
+        }
+    }
+
+    // Refresh role badges
+    if (typeof window.updateInstitutionRoleLabels === 'function') {
+        window.updateInstitutionRoleLabels();
+    }
 
     const student = window.getSettingsPreviewStudent();
     if (previewNameBadge) {
@@ -3121,10 +3214,8 @@ window.selectTemplateUI = (style) => {
     const selectedCard = document.getElementById("card_" + style);
     if (selectedCard) selectedCard.style.borderColor = "#10b981";
 
-    // Cycle to next student on each template change as requested: "HAR PREVIEW PAR DUSRA STUDENT BE PREVIEW MA AAYA GA STUDENT FIX NAHI REHIYA GA"
-    const pool = (Array.isArray(window.allStudents) && window.allStudents.length > 0)
-        ? window.allStudents
-        : window.defaultPreviewStudents;
+    // Cycle to next student of this school/college on each template change
+    const pool = window.getSettingsPreviewPool();
     window.settingsPreviewStudentIndex = ((window.settingsPreviewStudentIndex || 0) + 1) % pool.length;
     window.updateSettingsLivePreview(style);
 };
@@ -6465,8 +6556,19 @@ const paName = (arr, id) => { const r = paFind(arr, id); return r ? r.name : 'â€
 
 window.applyInstitutionMode = async () => {
     if (!currentSchoolId) return;
-    const { data } = await supabaseClient.from('schools').select('institution_type').eq('id', currentSchoolId).maybeSingle();
-    currentInstitutionType = (data && data.institution_type) || 'school';
+    const { data } = await supabaseClient.from('schools').select('institution_type, schoolName, name').eq('id', currentSchoolId).maybeSingle();
+    let instType = (data && data.institution_type) || '';
+    if (!instType) {
+        const sName = (data?.schoolName || data?.name || currentSchoolName || '').toLowerCase();
+        instType = (sName.includes('college') || sName.includes('degree') || sName.includes('university') || sName.includes('campus')) ? 'college' : 'school';
+    }
+    currentInstitutionType = instType;
+    if (data?.schoolName || data?.name) currentSchoolName = data.schoolName || data.name;
+
+    if (typeof window.updateInstitutionRoleLabels === 'function') {
+        window.updateInstitutionRoleLabels();
+    }
+
     const college = institutionIsCollege();
     ['departments', 'programs', 'sessions', 'sections'].forEach(k => {
         const el = document.getElementById('pa-menu-' + k);
