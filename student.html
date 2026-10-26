@@ -148,16 +148,39 @@
                     class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i>
                     Back to Dashboard</button>
                 <div class="card"
-                    style="text-align: center; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
-                    <i class="fas fa-id-badge" style="font-size: 36px; color: #1E3A8A; margin-bottom: 12px;"></i>
-                    <h3 style="color: #1E3A8A; margin-bottom: 8px; font-family:'Inter',sans-serif;">My Digital ID Card
-                    </h3>
-                    <p style="color: #64748b; font-size: 13px; margin-bottom: 16px;">Download your official digital
-                        student ID card.</p>
-                    <button id="stu-btn-download-id" class="action-btn btn-blue"
-                        onclick="window.downloadStudentIDCard()"
-                        style="width: 100%; padding: 12px; font-size: 14px; border-radius:10px;"><i
-                            class="fas fa-download"></i> Print / Save PDF</button>
+                    style="text-align: center; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); max-width: 480px; margin: 0 auto;">
+                    <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom: 6px;">
+                        <i class="fas fa-id-badge" style="font-size: 26px; color: #1E3A8A;"></i>
+                        <h3 style="color: #1E3A8A; margin: 0; font-family:'Inter',sans-serif; font-size: 20px;">My Official Digital ID Card</h3>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px; margin-bottom: 18px;">Your verified institutional identity card is active and auto-generated.</p>
+
+                    <!-- ID Card Render Box -->
+                    <div id="stu-idcard-card-box" style="width: 250px; height: 395px; margin: 0 auto 20px auto; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.18); background: #f8fafc; position: relative; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0;">
+                        <div id="stu-idcard-spinner" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: absolute; inset: 0; background: #ffffff;">
+                            <i class="fas fa-circle-notch fa-spin" style="font-size: 32px; color: #1e3a8a; margin-bottom: 10px;"></i>
+                            <span style="font-size: 13px; color: #64748b; font-weight: 600;">Rendering Official ID Card...</span>
+                        </div>
+                        <img id="stu-idcard-img" src="" alt="Student ID Card" style="width: 100%; height: 100%; object-fit: contain; display: none;" />
+                        <div id="stu-idcard-error" style="display: none; padding: 20px; color: #ef4444; font-size: 13px; font-weight: 500;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 28px; margin-bottom: 8px; display: block;"></i>
+                            <span id="stu-idcard-error-text">Unable to load ID card.</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                        <button id="stu-btn-download-id" class="action-btn btn-blue"
+                            onclick="window.downloadStudentIDCardPdf()"
+                            style="flex: 1; min-width: 150px; padding: 12px 16px; font-size: 13.5px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                            <i class="fas fa-file-pdf"></i> Download PDF
+                        </button>
+                        <button id="stu-btn-save-img" class="action-btn"
+                            onclick="window.downloadStudentIDCardImage()"
+                            style="flex: 1; min-width: 150px; padding: 12px 16px; font-size: 13.5px; border-radius:10px; background: #0f766e; color: #fff; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                            <i class="fas fa-image"></i> Save Image
+                        </button>
+                    </div>
                 </div>
             </div>
 

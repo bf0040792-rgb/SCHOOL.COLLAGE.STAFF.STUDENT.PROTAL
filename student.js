@@ -223,7 +223,7 @@ window.handleStudentFeatureClick = (featureId) => {
     }
     if (featureId === 'profile') return window.loadStudentProfile();
     if (featureId === 'fee') return window.showStudentPaymentSection();
-    if (featureId === 'idcard') return window.openStudentView('student-idcard-section');
+    if (featureId === 'idcard') return window.loadStudentIDCardView();
     if (featureId === 'admit') return window.loadStudentAdmitCard();
     if (featureId === 'fee-receipt') return window.showStudentReceiptsSection();
     if (featureId === 'complaint') return window.openStudentComplaintSection();
@@ -1696,16 +1696,30 @@ window.downloadStudentAdmitCard = () => {
     window.print();
 };
 
-window.downloadStudentIDCard = async () => {
-    if (!currentStudentUser) return;
-    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
-    if (due > 0) return alert("Digital ID Card is locked due to pending fees. Please clear your dues first.");
+window.studentLoadedIdCardBase64 = null;
 
-    const btn = $('stu-btn-download-id');
-    const originalText = btn ? btn.innerHTML : "";
-    if (btn) {
-        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Generating...";
-        btn.disabled = true;
+window.loadStudentIDCardView = async () => {
+    window.openStudentView('student-idcard-section');
+    if (!currentStudentUser) return;
+
+    const box = $('stu-idcard-card-box');
+    const spinner = $('stu-idcard-spinner');
+    const img = $('stu-idcard-img');
+    const errBox = $('stu-idcard-error');
+    const errText = $('stu-idcard-error-text');
+
+    if (spinner) spinner.style.display = "flex";
+    if (img) img.style.display = "none";
+    if (errBox) errBox.style.display = "none";
+
+    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
+    if (due > 0) {
+        if (spinner) spinner.style.display = "none";
+        if (errBox) {
+            errBox.style.display = "block";
+            if (errText) errText.innerText = `Digital ID Card is locked due to pending fees (Balance: ₹${due}). Please clear your dues first.`;
+        }
+        return;
     }
 
     try {
@@ -1739,28 +1753,68 @@ window.downloadStudentIDCard = async () => {
                 photoBgColor: schoolDoc.photoBgColor || "#ffffff"
             })
         });
+
         const data = await response.json();
         if (data.success && data.idCardUrl) {
+            window.studentLoadedIdCardBase64 = data.idCardUrl;
+            if (img) {
+                img.src = data.idCardUrl;
+                img.style.display = "block";
+            }
+        } else {
+            throw new Error(data.message || "Unable to render ID card.");
+        }
+    } catch (e) {
+        console.error("Student ID card auto-load error:", e);
+        if (errBox) {
+            errBox.style.display = "block";
+            if (errText) errText.innerText = "Error loading ID Card. Please check connection and try again.";
+        }
+    } finally {
+        if (spinner) spinner.style.display = "none";
+    }
+};
+
+window.downloadStudentIDCardPdf = async () => {
+    if (!currentStudentUser) return;
+    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
+    if (due > 0) return alert("Digital ID Card is locked due to pending fees. Please clear your dues first.");
+
+    const btn = $('stu-btn-download-id');
+    const originalText = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Preparing PDF...";
+        btn.disabled = true;
+    }
+
+    try {
+        let cardBase64 = window.studentLoadedIdCardBase64;
+        if (!cardBase64) {
+            await window.loadStudentIDCardView();
+            cardBase64 = window.studentLoadedIdCardBase64;
+        }
+
+        if (cardBase64) {
             if (window.jspdf && window.jspdf.jsPDF) {
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF('p', 'mm', 'a4');
-                pdf.addImage(data.idCardUrl, 'PNG', 10, 10, 54, 86);
-                pdf.save(`${currentStudentUser.name}_ID_Card.pdf`);
+                pdf.addImage(cardBase64, 'PNG', 10, 10, 54, 86);
+                pdf.save(`${(currentStudentUser.name || 'Student').replace(/\s+/g, '_')}_ID_Card.pdf`);
             } else {
                 const printWindow = window.open('', '_blank');
                 if (printWindow) {
-                    printWindow.document.write('<html><head><title>Student ID Card</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="' + data.idCardUrl + '" style="max-height:90vh;" onload="window.print();"></body></html>');
+                    printWindow.document.write('<html><head><title>Student ID Card</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="' + cardBase64 + '" style="max-height:90vh;" onload="window.print();"></body></html>');
                     printWindow.document.close();
                 } else {
                     window.print();
                 }
             }
         } else {
-            window.print();
+            alert("Unable to generate PDF. Please try again.");
         }
     } catch (e) {
         console.error("Student ID card download error:", e);
-        window.print();
+        alert("Download error: " + (e.message || "Failed to download PDF"));
     } finally {
         if (btn) {
             btn.innerHTML = originalText;
@@ -1768,6 +1822,31 @@ window.downloadStudentIDCard = async () => {
         }
     }
 };
+
+window.downloadStudentIDCardImage = async () => {
+    if (!currentStudentUser) return;
+    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
+    if (due > 0) return alert("Digital ID Card is locked due to pending fees. Please clear your dues first.");
+
+    let cardBase64 = window.studentLoadedIdCardBase64;
+    if (!cardBase64) {
+        await window.loadStudentIDCardView();
+        cardBase64 = window.studentLoadedIdCardBase64;
+    }
+
+    if (cardBase64) {
+        const link = document.createElement('a');
+        link.href = cardBase64;
+        link.download = `${(currentStudentUser.name || 'Student').replace(/\s+/g, '_')}_ID_Card.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else {
+        alert("ID Card image is not ready yet. Please wait a moment.");
+    }
+};
+
+window.downloadStudentIDCard = window.downloadStudentIDCardPdf;
 
 // ====== SMS & DIRECT BATCHMATE CHAT ======
 let activeSmsBatchmates = [];

@@ -330,6 +330,9 @@ window.switchTab = (targetId) => {
         window.loadSyllabusList?.();
         window.loadDateSheetList?.();
     }
+    if (targetId === 'tab-settings' && typeof window.updateSettingsLivePreview === 'function') {
+        window.updateSettingsLivePreview();
+    }
 };
 
 window.openDashboardDetail = (type) => {
@@ -1119,7 +1122,7 @@ async function checkAdmissionStatus() {
         }
         document.getElementById("admissionToggle").checked = data.admissionOpen !== false;
 
-        if (data.emergencyMobile) { document.getElementById("school_emergency").value = data.emergencyMobile; document.getElementById("print_emergency").innerText = "Emergency: " + data.emergencyMobile; }
+        if (data.emergencyMobile) { window.currentEmergencyMobile = data.emergencyMobile; if (document.getElementById("school_emergency")) document.getElementById("school_emergency").value = data.emergencyMobile; if (document.getElementById("print_emergency")) document.getElementById("print_emergency").innerText = "Emergency: " + data.emergencyMobile; }
         if (data.signatureUrl) {
             currentSignatureUrl = data.signatureUrl;
             document.getElementById("preview-signature").src = data.signatureUrl;
@@ -2969,24 +2972,186 @@ window.toggleSingleFeature = async (group, key, enabled) => {
     await persistFeatureSettings();
 };
 
+// ====== ID CARD LIVE STUDIO & REAL-TIME PREVIEW CONTROLLER ======
+window.settingsPreviewStudentIndex = 0;
+window.defaultPreviewStudents = [
+    {
+        name: "Aarav Sharma",
+        class: "10th - A",
+        rollNo: "1024",
+        regNo: "REG-2026-081",
+        dob: "14/08/2009",
+        parentage: "Rajesh Sharma",
+        mobile: "+91 98765 43210",
+        address: "Green Park, Sector 4, New Delhi",
+        photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
+    },
+    {
+        name: "Zoya Khan",
+        class: "12th - Science",
+        rollNo: "1205",
+        regNo: "REG-2026-112",
+        dob: "22/01/2008",
+        parentage: "Mohammad Farooq Khan",
+        mobile: "+91 97654 32109",
+        address: "Rose Avenue, Flat 3B, Srinagar",
+        photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80"
+    },
+    {
+        name: "Rohan Verma",
+        class: "9th - B",
+        rollNo: "9042",
+        regNo: "REG-2026-045",
+        dob: "05/11/2010",
+        parentage: "Suresh Verma",
+        mobile: "+91 98112 23344",
+        address: "Civil Lines, House 12, Lucknow",
+        photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80"
+    },
+    {
+        name: "Ananya Patel",
+        class: "11th - Commerce",
+        rollNo: "1118",
+        regNo: "REG-2026-198",
+        dob: "30/03/2009",
+        parentage: "Mahesh Patel",
+        mobile: "+91 99223 34455",
+        address: "Heritage Enclave, Block C, Ahmedabad",
+        photoUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80"
+    }
+];
+
+window.getSettingsPreviewStudent = () => {
+    const pool = (Array.isArray(window.allStudents) && window.allStudents.length > 0)
+        ? window.allStudents
+        : window.defaultPreviewStudents;
+    const idx = (window.settingsPreviewStudentIndex || 0) % pool.length;
+    const st = pool[idx];
+    return {
+        id: st.id || st.regNo || "PREV-01",
+        rollNo: st.rollNo || st.roll_no || st.rollCode || "101",
+        regNo: st.regNo || st.reg_no || "REG-101",
+        name: st.name || "Sample Student",
+        class: st.class || "10th",
+        dob: st.dob || "15/08/2009",
+        parentage: st.parentage || st.fatherName || "Guardian Name",
+        mobile: st.mobile || "+91 9876543210",
+        address: st.address || "Main Campus Road",
+        photoUrl: st.photoUrl || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80"
+    };
+};
+
+window.cycleSettingsPreviewStudent = () => {
+    const pool = (Array.isArray(window.allStudents) && window.allStudents.length > 0)
+        ? window.allStudents
+        : window.defaultPreviewStudents;
+    window.settingsPreviewStudentIndex = ((window.settingsPreviewStudentIndex || 0) + 1) % pool.length;
+    window.updateSettingsLivePreview();
+};
+
+let settingsPreviewDebounceTimer = null;
+window.debouncedSettingsPreview = () => {
+    clearTimeout(settingsPreviewDebounceTimer);
+    settingsPreviewDebounceTimer = setTimeout(() => {
+        window.updateSettingsLivePreview();
+    }, 250);
+};
+
+window.updateSettingsLivePreview = async (overrideStyle) => {
+    const previewImg = document.getElementById("settings_live_preview_img");
+    const previewLoader = document.getElementById("settings_preview_loader");
+    const previewNameBadge = document.getElementById("preview-student-name");
+    if (!previewImg) return;
+
+    const student = window.getSettingsPreviewStudent();
+    if (previewNameBadge) {
+        previewNameBadge.innerText = `${student.name} (${student.class})`;
+    }
+
+    if (previewLoader) previewLoader.style.display = "flex";
+
+    const style = overrideStyle || currentTemplateStyle || "wave";
+    const themeColor = document.getElementById("school_theme_color")?.value || currentThemeColor || "#1e3c72";
+    const secColor = document.getElementById("school_secondary_color")?.value || currentSecondaryColor || "#ffffff";
+    const schoolName = currentSchoolName || document.getElementById('top-school-name')?.innerText || document.getElementById('side-school-name')?.innerText || "INSTITUTION NAME";
+    const schoolEmergency = document.getElementById("school_emergency")?.value || window.currentEmergencyMobile || "N/A";
+    const signatureUrl = (window.currentSigSettings && window.currentSigSettings.idCard === false) ? "" : currentSignatureUrl;
+    const schoolLogoUrl = document.getElementById('print_school_logo')?.src || document.getElementById('school-logo')?.src || "";
+    const schoolNameColor = document.getElementById('idSchoolNameColor')?.value || currentSchoolNameColor || "#ffffff";
+    const studentNameColor = document.getElementById('idStudentNameColor')?.value || currentStudentNameColor || "#d32f2f";
+    const detailsColor = document.getElementById('idDetailsColor')?.value || currentDetailsColor || "#333333";
+    const photoBgColor = document.getElementById('idPhotoBgColor')?.value || currentPhotoBgColor || "#ffffff";
+
+    try {
+        const response = await fetch("https://school-backend-zlgy.onrender.com/api/generate-id-card", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                studentData: student,
+                themeColor: themeColor,
+                secondaryColor: secColor,
+                templateStyle: style,
+                schoolName: schoolName,
+                schoolEmergency: schoolEmergency,
+                signatureUrl: signatureUrl,
+                schoolLogoUrl: schoolLogoUrl,
+                schoolNameColor: schoolNameColor,
+                studentNameColor: studentNameColor,
+                detailsColor: detailsColor,
+                photoBgColor: photoBgColor,
+                textSettings: window.currentTextSettings
+            })
+        });
+
+        const data = await response.json();
+        if (data.success && data.idCardUrl) {
+            previewImg.src = data.idCardUrl;
+            previewImg.style.display = "block";
+        }
+    } catch (e) {
+        console.error("Live preview generation failed:", e);
+    } finally {
+        if (previewLoader) previewLoader.style.display = "none";
+    }
+};
+
 window.selectTemplateUI = (style) => {
     currentTemplateStyle = style;
     document.querySelectorAll('[id^="card_"]').forEach(el => el.style.borderColor = "transparent");
     const selectedCard = document.getElementById("card_" + style);
     if (selectedCard) selectedCard.style.borderColor = "#10b981";
+
+    // Cycle to next student on each template change as requested: "HAR PREVIEW PAR DUSRA STUDENT BE PREVIEW MA AAYA GA STUDENT FIX NAHI REHIYA GA"
+    const pool = (Array.isArray(window.allStudents) && window.allStudents.length > 0)
+        ? window.allStudents
+        : window.defaultPreviewStudents;
+    window.settingsPreviewStudentIndex = ((window.settingsPreviewStudentIndex || 0) + 1) % pool.length;
+    window.updateSettingsLivePreview(style);
 };
 
 window.saveThemeSettings = async () => {
     const color = document.getElementById("school_theme_color")?.value || currentThemeColor;
     const secColor = document.getElementById("school_secondary_color")?.value || currentSecondaryColor;
     const style = currentTemplateStyle || "wave";
+    const emgNum = document.getElementById("school_emergency")?.value?.trim() || "";
+
+    const updatePayload = {
+        themeColor: color,
+        idTemplateColor: color,
+        secondaryColor: secColor,
+        idTemplateStyle: style
+    };
+    if (emgNum) updatePayload.emergencyMobile = emgNum;
+
     try {
-        const { error } = await supabaseClient.from("schools").update({ themeColor: color, idTemplateColor: color, secondaryColor: secColor, idTemplateStyle: style }).eq("id", currentSchoolId);
+        const { error } = await supabaseClient.from("schools").update(updatePayload).eq("id", currentSchoolId);
         if (error) throw error;
         currentThemeColor = color;
         currentSecondaryColor = secColor;
+        if (emgNum) window.currentEmergencyMobile = emgNum;
         document.documentElement.style.setProperty('--theme-color', currentThemeColor);
-        alert("ID Card Design & Theme Color Saved Successfully!");
+        alert("ID Card Design & Theme Settings Saved Successfully!");
+        window.updateSettingsLivePreview();
     } catch (e) {
         alert("Failed to save theme: " + e.message);
     }
@@ -2998,24 +3163,39 @@ window.saveIDColorSettings = async () => {
     const dColor = document.getElementById("idDetailsColor")?.value || currentDetailsColor;
     const pbColor = document.getElementById("idPhotoBgColor")?.value || currentPhotoBgColor;
     try {
-        const { error } = await supabaseClient.from("schools").update({ schoolNameColor: scColor, studentNameColor: stColor, detailsColor: dColor, photoBgColor: pbColor }).eq("id", currentSchoolId);
+        const { error } = await supabaseClient.from("schools").update({
+            schoolNameColor: scColor,
+            studentNameColor: stColor,
+            detailsColor: dColor,
+            photoBgColor: pbColor
+        }).eq("id", currentSchoolId);
         if (error) throw error;
         currentSchoolNameColor = scColor;
         currentStudentNameColor = stColor;
         currentDetailsColor = dColor;
         currentPhotoBgColor = pbColor;
         alert("ID Card Text & Photo Colors Saved Successfully!");
+        window.updateSettingsLivePreview();
     } catch (e) {
         alert("Failed to save colors: " + e.message);
     }
 };
+
 window.saveEmergency = async () => {
-    const num = document.getElementById("school_emergency").value.trim(); if (!num) return alert("Enter Emergency Number");
+    const num = document.getElementById("school_emergency")?.value?.trim() || "";
+    if (!num) return alert("Please enter an Emergency Mobile Number.");
     try {
         const { error } = await supabaseClient.from("schools").update({ emergencyMobile: num }).eq("id", currentSchoolId);
         if (error) throw error;
-        document.getElementById("print_emergency").innerText = "Emergency: " + num; alert("Emergency Number Saved!");
-    } catch (e) { }
+        window.currentEmergencyMobile = num;
+        const printEmg = document.getElementById("print_emergency");
+        if (printEmg) printEmg.innerText = "Emergency: " + num;
+        alert("Emergency Number Saved Successfully!");
+        window.updateSettingsLivePreview();
+    } catch (e) {
+        console.error("Save emergency error:", e);
+        alert("Failed to save Emergency Number: " + (e.message || "Database error"));
+    }
 };
 window.saveSignature = async () => {
     const btn = document.getElementById("sig_btn");

@@ -2122,202 +2122,240 @@
                     <div class="card">
                         <h3><i class="fas fa-cogs"></i> School White-Labeling & ID Settings</h3>
 
-                        <div class="setting-row" style="flex-direction: column; align-items: flex-start;">
-                            <label style="font-weight: bold; margin-bottom: 10px;">ID Card Template
-                                Selection</label>
-                            <div style="display: flex; gap: 20px; overflow-x: auto; width: 100%; padding: 10px 0;">
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="wave" style="display:none;"
-                                        id="ts_wave" checked onclick="selectTemplateUI('wave')">
-                                    <div id="card_wave"
-                                        style="width: 80px; height: 120px; border: 3px solid #10b981; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: var(--theme-color, #1e3c72); border-bottom-left-radius: 50%; border-bottom-right-radius: 50%;">
-                                        </div>
+                        <div style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">
+                            <!-- Left Controls Column -->
+                            <div style="flex: 1; min-width: 320px;">
+                                <div class="setting-row" style="flex-direction: column; align-items: flex-start; margin-top:0;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:8px;">
+                                        <label style="font-weight: bold; margin:0;"><i class="fas fa-layer-group text-blue-600"></i> Select ID Card Template</label>
+                                        <small style="color:#64748b; font-size:11.5px;">Click to apply & auto-switch sample</small>
                                     </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Modern
-                                        Wave</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="triangle" style="display:none;"
-                                        id="ts_triangle" onclick="selectTemplateUI('triangle')">
-                                    <div id="card_triangle"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: 0; left: 0; width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-top: 50px solid var(--theme-color, #1e3c72);">
-                                        </div>
+                                    <div style="display: flex; gap: 15px; overflow-x: auto; width: 100%; padding: 8px 4px 12px 4px;">
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="wave" style="display:none;"
+                                                id="ts_wave" checked onclick="selectTemplateUI('wave')">
+                                            <div id="card_wave"
+                                                style="width: 80px; height: 120px; border: 3px solid #10b981; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: var(--theme-color, #1e3c72); border-bottom-left-radius: 50%; border-bottom-right-radius: 50%;">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Modern
+                                                Wave</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="triangle" style="display:none;"
+                                                id="ts_triangle" onclick="selectTemplateUI('triangle')">
+                                            <div id="card_triangle"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: 0; left: 0; width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-top: 50px solid var(--theme-color, #1e3c72);">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Corporate
+                                                V</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="curved" style="display:none;"
+                                                id="ts_curved" onclick="selectTemplateUI('curved')">
+                                            <div id="card_curved"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: var(--theme-color, #1e3c72); border-bottom-left-radius: 20px;">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Smooth
+                                                Curve</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="corners" style="display:none;"
+                                                id="ts_corners" onclick="selectTemplateUI('corners')">
+                                            <div id="card_corners"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: -10px; left: -10px; width: 40px; height: 40px; background: var(--theme-color, #1e3c72); border-radius: 50%;">
+                                                </div>
+                                                <div
+                                                    style="position: absolute; bottom: -10px; right: -10px; width: 40px; height: 40px; background: var(--theme-color, #1e3c72); border-radius: 50%;">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Creative
+                                                Dots</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="diagonal" style="display:none;"
+                                                id="ts_diagonal" onclick="selectTemplateUI('diagonal')">
+                                            <div id="card_diagonal"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: 0; left: 0; width: 0; height: 0; border-top: 60px solid var(--theme-color, #1e3c72); border-right: 80px solid transparent;">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Diagonal</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="double_banner"
+                                                style="display:none;" id="ts_double_banner"
+                                                onclick="selectTemplateUI('double_banner')">
+                                            <div id="card_double_banner"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 25px; background: var(--theme-color, #1e3c72);">
+                                                </div>
+                                                <div
+                                                    style="position: absolute; top: 25px; left: 0; width: 100%; height: 10px; background: #ccc;">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Double
+                                                Banner</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="vertical_edge"
+                                                style="display:none;" id="ts_vertical_edge"
+                                                onclick="selectTemplateUI('vertical_edge')">
+                                            <div id="card_vertical_edge"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: 0; left: 0; width: 20px; height: 100%; background: var(--theme-color, #1e3c72);">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Vertical
+                                                Edge</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="bubbles" style="display:none;"
+                                                id="ts_bubbles" onclick="selectTemplateUI('bubbles')">
+                                            <div id="card_bubbles"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
+                                                <div
+                                                    style="position: absolute; top: -10px; left: 10px; width: 50px; height: 50px; background: var(--theme-color, #1e3c72); border-radius: 50%; opacity: 0.8;">
+                                                </div>
+                                                <div
+                                                    style="position: absolute; top: 15px; left: -10px; width: 35px; height: 35px; background: #ccc; border-radius: 50%; opacity: 0.6;">
+                                                </div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Bubbles</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="executive_split" style="display:none;"
+                                                id="ts_executive_split" onclick="selectTemplateUI('executive_split')">
+                                            <div id="card_executive_split"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #fafafa; position: relative; overflow: hidden; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 42px; background: var(--theme-color, #1e3c72); clip-path: polygon(0 0, 100% 0, 100% 65%, 0 100%);"></div>
+                                                <div style="position: absolute; top: 0; right: 0; width: 45px; height: 46px; background: var(--secondary-color, #991b1b); clip-path: polygon(0 0, 100% 0, 100% 100%); opacity: 0.85;"></div>
+                                                <div style="position: absolute; top: 24px; left: 26px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #f59e0b; background: #fff;"></div>
+                                                <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 5px; background: #f59e0b;"></div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Executive Split</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="fluid_ribbon" style="display:none;"
+                                                id="ts_fluid_ribbon" onclick="selectTemplateUI('fluid_ribbon')">
+                                            <div id="card_fluid_ribbon"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #f8fafc; position: relative; overflow: hidden; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 38px; background: var(--theme-color, #1e3c72); border-bottom-left-radius: 35px 20px; border-bottom-right-radius: 15px 25px;"></div>
+                                                <div style="position: absolute; top: 22px; left: 26px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--theme-color, #1e3c72); background: #fff;"></div>
+                                                <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 18px; background: var(--theme-color, #1e3c72); border-top-left-radius: 30px 15px; border-top-right-radius: 40px 10px;"></div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Fluid Ribbon</span>
+                                        </label>
+                                        <label style="cursor: pointer; text-align: center;">
+                                            <input type="radio" name="template_style" value="corporate_horizon" style="display:none;"
+                                                id="ts_corporate_horizon" onclick="selectTemplateUI('corporate_horizon')">
+                                            <div id="card_corporate_horizon"
+                                                style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #fff; position: relative; overflow: hidden; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 22px; background: var(--theme-color, #1e3c72);"></div>
+                                                <div style="position: absolute; top: 22px; left: 0; width: 100%; height: 3px; background: var(--secondary-color, #cbd5e1);"></div>
+                                                <div style="position: absolute; top: 32px; left: 0; width: 20px; height: 3px; background: var(--theme-color, #1e3c72); border-radius: 2px;"></div>
+                                                <div style="position: absolute; top: 32px; right: 0; width: 20px; height: 3px; background: var(--theme-color, #1e3c72); border-radius: 2px;"></div>
+                                                <div style="position: absolute; top: 28px; left: 27px; width: 26px; height: 26px; border-radius: 4px; border: 2px solid var(--theme-color, #1e3c72); background: #eee;"></div>
+                                                <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; background: var(--theme-color, #1e3c72);"></div>
+                                            </div>
+                                            <span style="font-size: 12px; display: block; margin-top: 5px;">Corporate Horizon</span>
+                                        </label>
                                     </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Corporate
-                                        V</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="curved" style="display:none;"
-                                        id="ts_curved" onclick="selectTemplateUI('curved')">
-                                    <div id="card_curved"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: var(--theme-color, #1e3c72); border-bottom-left-radius: 20px;">
-                                        </div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Smooth
-                                        Curve</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="corners" style="display:none;"
-                                        id="ts_corners" onclick="selectTemplateUI('corners')">
-                                    <div id="card_corners"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: -10px; left: -10px; width: 40px; height: 40px; background: var(--theme-color, #1e3c72); border-radius: 50%;">
-                                        </div>
-                                        <div
-                                            style="position: absolute; bottom: -10px; right: -10px; width: 40px; height: 40px; background: var(--theme-color, #1e3c72); border-radius: 50%;">
-                                        </div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Creative
-                                        Dots</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="diagonal" style="display:none;"
-                                        id="ts_diagonal" onclick="selectTemplateUI('diagonal')">
-                                    <div id="card_diagonal"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: 0; left: 0; width: 0; height: 0; border-top: 60px solid var(--theme-color, #1e3c72); border-right: 80px solid transparent;">
-                                        </div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Diagonal</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="double_banner"
-                                        style="display:none;" id="ts_double_banner"
-                                        onclick="selectTemplateUI('double_banner')">
-                                    <div id="card_double_banner"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: 0; left: 0; width: 100%; height: 25px; background: var(--theme-color, #1e3c72);">
-                                        </div>
-                                        <div
-                                            style="position: absolute; top: 25px; left: 0; width: 100%; height: 10px; background: #ccc;">
-                                        </div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Double
-                                        Banner</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="vertical_edge"
-                                        style="display:none;" id="ts_vertical_edge"
-                                        onclick="selectTemplateUI('vertical_edge')">
-                                    <div id="card_vertical_edge"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: 0; left: 0; width: 20px; height: 100%; background: var(--theme-color, #1e3c72);">
-                                        </div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Vertical
-                                        Edge</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="bubbles" style="display:none;"
-                                        id="ts_bubbles" onclick="selectTemplateUI('bubbles')">
-                                    <div id="card_bubbles"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #eee; position: relative; overflow: hidden; transition: 0.3s;">
-                                        <div
-                                            style="position: absolute; top: -10px; left: 10px; width: 50px; height: 50px; background: var(--theme-color, #1e3c72); border-radius: 50%; opacity: 0.8;">
-                                        </div>
-                                        <div
-                                            style="position: absolute; top: 15px; left: -10px; width: 35px; height: 35px; background: #ccc; border-radius: 50%; opacity: 0.6;">
-                                        </div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Bubbles</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="executive_split" style="display:none;"
-                                        id="ts_executive_split" onclick="selectTemplateUI('executive_split')">
-                                    <div id="card_executive_split"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #fafafa; position: relative; overflow: hidden; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 42px; background: var(--theme-color, #1e3c72); clip-path: polygon(0 0, 100% 0, 100% 65%, 0 100%);"></div>
-                                        <div style="position: absolute; top: 0; right: 0; width: 45px; height: 46px; background: var(--secondary-color, #991b1b); clip-path: polygon(0 0, 100% 0, 100% 100%); opacity: 0.85;"></div>
-                                        <div style="position: absolute; top: 24px; left: 26px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #f59e0b; background: #fff;"></div>
-                                        <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 5px; background: #f59e0b;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Executive Split</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="fluid_ribbon" style="display:none;"
-                                        id="ts_fluid_ribbon" onclick="selectTemplateUI('fluid_ribbon')">
-                                    <div id="card_fluid_ribbon"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #f8fafc; position: relative; overflow: hidden; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 38px; background: var(--theme-color, #1e3c72); border-bottom-left-radius: 35px 20px; border-bottom-right-radius: 15px 25px;"></div>
-                                        <div style="position: absolute; top: 22px; left: 26px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--theme-color, #1e3c72); background: #fff;"></div>
-                                        <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 18px; background: var(--theme-color, #1e3c72); border-top-left-radius: 30px 15px; border-top-right-radius: 40px 10px;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Fluid Ribbon</span>
-                                </label>
-                                <label style="cursor: pointer; text-align: center;">
-                                    <input type="radio" name="template_style" value="corporate_horizon" style="display:none;"
-                                        id="ts_corporate_horizon" onclick="selectTemplateUI('corporate_horizon')">
-                                    <div id="card_corporate_horizon"
-                                        style="width: 80px; height: 120px; border: 3px solid transparent; border-radius: 8px; background: #fff; position: relative; overflow: hidden; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 22px; background: var(--theme-color, #1e3c72);"></div>
-                                        <div style="position: absolute; top: 22px; left: 0; width: 100%; height: 3px; background: var(--secondary-color, #cbd5e1);"></div>
-                                        <div style="position: absolute; top: 32px; left: 0; width: 20px; height: 3px; background: var(--theme-color, #1e3c72); border-radius: 2px;"></div>
-                                        <div style="position: absolute; top: 32px; right: 0; width: 20px; height: 3px; background: var(--theme-color, #1e3c72); border-radius: 2px;"></div>
-                                        <div style="position: absolute; top: 28px; left: 27px; width: 26px; height: 26px; border-radius: 4px; border: 2px solid var(--theme-color, #1e3c72); background: #eee;"></div>
-                                        <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; background: var(--theme-color, #1e3c72);"></div>
-                                    </div>
-                                    <span style="font-size: 12px; display: block; margin-top: 5px;">Corporate Horizon</span>
-                                </label>
-                            </div>
-                        </div>
+                                </div>
 
-                        <div class="setting-row" style="display: flex; gap: 20px; align-items: flex-end;">
-                            <div class="form-group" style="flex:1;">
-                                <label>Color 1 (Theme Color)</label>
-                                <input type="color" id="school_theme_color" value="#1e3c72"
-                                    style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
-                            </div>
-                            <div class="form-group" style="flex:1;">
-                                <label>Color 2 (Secondary Color)</label>
-                                <input type="color" id="school_secondary_color" value="#ffffff"
-                                    style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
-                            </div>
-                            <button class="submit-btn" style="flex:1;" onclick="saveThemeSettings()"><i
-                                    class="fas fa-palette"></i> Save Design</button>
-                        </div>
+                                <div class="setting-row" style="display: flex; gap: 15px; align-items: flex-end;">
+                                    <div class="form-group" style="flex:1;">
+                                        <label>Color 1 (Theme Color)</label>
+                                        <input type="color" id="school_theme_color" value="#1e3c72" oninput="window.debouncedSettingsPreview()"
+                                            style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
+                                    </div>
+                                    <div class="form-group" style="flex:1;">
+                                        <label>Color 2 (Secondary Color)</label>
+                                        <input type="color" id="school_secondary_color" value="#ffffff" oninput="window.debouncedSettingsPreview()"
+                                            style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
+                                    </div>
+                                    <button class="submit-btn" style="flex:1;" onclick="saveThemeSettings()"><i
+                                            class="fas fa-palette"></i> Save Design</button>
+                                </div>
 
-                        <div class="setting-row"
-                            style="display: flex; gap: 20px; align-items: flex-end; margin-top: 15px;">
-                            <div class="form-group" style="flex:1;">
-                                <label>School Name Color</label>
-                                <input type="color" id="idSchoolNameColor" value="#ffffff"
-                                    style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
-                            </div>
-                            <div class="form-group" style="flex:1;">
-                                <label>Student Name Color</label>
-                                <input type="color" id="idStudentNameColor" value="#d32f2f"
-                                    style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
-                            </div>
-                            <div class="form-group" style="flex:1;">
-                                <label>Details Text Color</label>
-                                <input type="color" id="idDetailsColor" value="#333333"
-                                    style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
-                            </div>
-                            <div class="form-group" style="flex:1;">
-                                <label>Photo Background Color</label>
-                                <input type="color" id="idPhotoBgColor" value="#ffffff" class="input-premium"
-                                    style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
-                            </div>
-                            <button class="submit-btn" style="flex:1;" onclick="saveIDColorSettings()"><i
-                                    class="fas fa-font"></i> Save Colors</button>
-                        </div>
+                                <div class="setting-row"
+                                    style="display: flex; gap: 15px; align-items: flex-end; margin-top: 15px; flex-wrap: wrap;">
+                                    <div class="form-group" style="flex:1; min-width:110px;">
+                                        <label>School Name Color</label>
+                                        <input type="color" id="idSchoolNameColor" value="#ffffff" oninput="window.debouncedSettingsPreview()"
+                                            style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
+                                    </div>
+                                    <div class="form-group" style="flex:1; min-width:110px;">
+                                        <label>Student Name Color</label>
+                                        <input type="color" id="idStudentNameColor" value="#d32f2f" oninput="window.debouncedSettingsPreview()"
+                                            style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
+                                    </div>
+                                    <div class="form-group" style="flex:1; min-width:110px;">
+                                        <label>Details Text Color</label>
+                                        <input type="color" id="idDetailsColor" value="#333333" oninput="window.debouncedSettingsPreview()"
+                                            style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
+                                    </div>
+                                    <div class="form-group" style="flex:1; min-width:110px;">
+                                        <label>Photo Background Color</label>
+                                        <input type="color" id="idPhotoBgColor" value="#ffffff" class="input-premium" oninput="window.debouncedSettingsPreview()"
+                                            style="width: 100%; height: 40px; padding: 2px; cursor: pointer;">
+                                    </div>
+                                    <button class="submit-btn" style="flex:1; min-width:130px;" onclick="saveIDColorSettings()"><i
+                                            class="fas fa-font"></i> Save Colors</button>
+                                </div>
 
-                        <div class="setting-row">
-                            <div class="form-group" style="flex:1;"><label>School Emergency Mobile No. (Prints on
-                                    ID)</label><input type="text" id="school_emergency"
-                                    placeholder="e.g. +91 9876543210"></div>
-                            <button class="submit-btn" onclick="saveEmergency()"><i class="fas fa-phone"></i> Save
-                                Number</button>
+                                <div class="setting-row" style="margin-top: 15px;">
+                                    <div class="form-group" style="flex:1;"><label>School Emergency Mobile No. (Prints on
+                                            ID)</label><input type="text" id="school_emergency" oninput="window.debouncedSettingsPreview()"
+                                            placeholder="e.g. +91 9876543210"></div>
+                                    <button class="submit-btn" onclick="saveEmergency()"><i class="fas fa-phone"></i> Save
+                                        Number</button>
+                                </div>
+                            </div>
+
+                            <!-- Right Live Preview Column -->
+                            <div style="width: 270px; flex-shrink: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <strong style="color:#0f172a; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+                                        <i class="fas fa-eye text-emerald-500"></i> Live Card Preview
+                                    </strong>
+                                    <button type="button" onclick="window.cycleSettingsPreviewStudent()"
+                                        title="Preview another student"
+                                        style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                                        <i class="fas fa-sync-alt"></i> Change Student
+                                    </button>
+                                </div>
+                                <div style="font-size:11px; color:#64748b; margin-bottom:10px; background:#f8fafc; padding:4px 8px; border-radius:6px; border:1px dashed #cbd5e1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                    Sample: <span id="preview-student-name" style="color:#0f172a; font-weight:700;">Aarav Sharma (10th)</span>
+                                </div>
+
+                                <div id="settings_live_preview_box"
+                                    style="width: 220px; height: 350px; margin: 0 auto; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,0.12); background: #f1f5f9; position: relative; display: flex; align-items: center; justify-content: center; border: 1px solid #cbd5e1;">
+                                    <div id="settings_preview_loader"
+                                        style="display: none; position: absolute; inset: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(2px); z-index: 5; flex-direction: column; align-items: center; justify-content: center;">
+                                        <i class="fas fa-circle-notch fa-spin" style="font-size: 26px; color: #10b981; margin-bottom: 6px;"></i>
+                                        <span style="font-size: 11.5px; color: #334155; font-weight: 600;">Updating Preview...</span>
+                                    </div>
+                                    <img id="settings_live_preview_img" src="" alt="Live ID Card Preview"
+                                        style="width: 100%; height: 100%; object-fit: contain; display: none;" />
+                                </div>
+                                <div style="font-size:10.5px; color:#94a3b8; margin-top:8px;">
+                                    <i class="fas fa-bolt text-amber-500"></i> Auto-updates live as you pick templates & colors
+                                </div>
+                            </div>
                         </div>
 
                         <div class="setting-row" style="flex-direction: column; align-items: stretch;">
