@@ -350,12 +350,38 @@ async function loadStudentDashboard() {
     $('banner-name') && ($('banner-name').innerText = currentStudentUser?.name || "N/A");
     $('banner-parentage') && ($('banner-parentage').innerText = currentStudentUser?.parentage || currentStudentUser?.fatherName || "N/A");
     $('banner-class') && ($('banner-class').innerText = currentStudentUser?.class || "N/A");
-    $('banner-reg') && ($('banner-reg').innerText = currentStudentUser?.regNo || currentStudentUser?.rollNo || "N/A");
+    // Robust Roll No / Reg No formatting
+    const rollNo = (currentStudentUser?.rollNo && String(currentStudentUser.rollNo).trim() !== 'N/A') 
+        ? String(currentStudentUser.rollNo).trim() 
+        : ((currentStudentUser?.roll && String(currentStudentUser.roll).trim() !== 'N/A') ? String(currentStudentUser.roll).trim() : '');
+    const regNo = (currentStudentUser?.regNo && String(currentStudentUser.regNo).trim() !== 'N/A') 
+        ? String(currentStudentUser.regNo).trim() 
+        : ((currentStudentUser?.reg && String(currentStudentUser.reg).trim() !== 'N/A') ? String(currentStudentUser.reg).trim() : '');
+    let displayRollReg = 'N/A';
+    if (rollNo && regNo && rollNo !== regNo) {
+        displayRollReg = `${rollNo} / ${regNo}`;
+    } else if (rollNo) {
+        displayRollReg = rollNo;
+    } else if (regNo) {
+        displayRollReg = regNo;
+    }
+    $('banner-reg') && ($('banner-reg').innerText = displayRollReg);
+
     $('banner-dob') && ($('banner-dob').innerText = formatDobForDisplay(currentStudentUser?.dob));
     $('banner-contact') && ($('banner-contact').innerText = currentStudentUser?.mobile || "N/A");
     $('banner-blood') && ($('banner-blood').innerText = currentStudentUser?.bloodGroup || "N/A");
-    $('banner-emergency') && ($('banner-emergency').innerText = currentStudentUser?.emergencyNo || "N/A");
-    const qrString = `Name: ${currentStudentUser?.name || 'N/A'}\nSchool: ${currentStudentSchoolDoc?.schoolName || 'N/A'}\nClass: ${currentStudentUser?.class || 'N/A'}\nReg: ${currentStudentUser?.regNo || 'N/A'}\nContact: ${currentStudentUser?.mobile || 'N/A'}`;
+
+    // Robust Emergency Mobile Number formatting (checks school setting first)
+    const emgNo = (currentStudentSchoolDoc?.emergencyMobile && String(currentStudentSchoolDoc.emergencyMobile).trim() !== 'N/A')
+        ? String(currentStudentSchoolDoc.emergencyMobile).trim()
+        : ((currentStudentSchoolDoc?.emergencyNo && String(currentStudentSchoolDoc.emergencyNo).trim() !== 'N/A')
+            ? String(currentStudentSchoolDoc.emergencyNo).trim()
+            : ((currentStudentUser?.emergencyNo && String(currentStudentUser.emergencyNo).trim() !== 'N/A')
+                ? String(currentStudentUser.emergencyNo).trim()
+                : 'N/A'));
+    $('banner-emergency') && ($('banner-emergency').innerText = emgNo);
+
+    const qrString = `Name: ${currentStudentUser?.name || 'N/A'}\nInstitution: ${currentStudentSchoolDoc?.schoolName || 'N/A'}\nClass: ${currentStudentUser?.class || 'N/A'}\nRoll: ${rollNo || 'N/A'}\nReg: ${regNo || 'N/A'}\nEmergency: ${emgNo || 'N/A'}\nContact: ${currentStudentUser?.mobile || 'N/A'}`;
     $('stu-banner-qr') && ($('stu-banner-qr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(qrString));
     const photo = $('stu-banner-photo');
     const icon = $('stu-banner-photo-icon');
@@ -1724,14 +1750,28 @@ window.loadStudentIDCardView = async () => {
 
     try {
         const schoolDoc = currentStudentSchoolDoc || {};
+        const activeRoll = (currentStudentUser?.rollNo && String(currentStudentUser.rollNo).trim() !== 'N/A')
+            ? String(currentStudentUser.rollNo).trim()
+            : ((currentStudentUser?.roll && String(currentStudentUser.roll).trim() !== 'N/A') ? String(currentStudentUser.roll).trim() : '');
+        const activeReg = (currentStudentUser?.regNo && String(currentStudentUser.regNo).trim() !== 'N/A')
+            ? String(currentStudentUser.regNo).trim()
+            : ((currentStudentUser?.reg && String(currentStudentUser.reg).trim() !== 'N/A') ? String(currentStudentUser.reg).trim() : '');
+        const activeEmg = (schoolDoc.emergencyMobile && String(schoolDoc.emergencyMobile).trim() !== 'N/A')
+            ? String(schoolDoc.emergencyMobile).trim()
+            : ((schoolDoc.emergencyNo && String(schoolDoc.emergencyNo).trim() !== 'N/A')
+                ? String(schoolDoc.emergencyNo).trim()
+                : ((currentStudentUser?.emergencyNo && String(currentStudentUser.emergencyNo).trim() !== 'N/A')
+                    ? String(currentStudentUser.emergencyNo).trim()
+                    : 'N/A'));
+
         const response = await fetch("https://school-backend-zlgy.onrender.com/api/generate-id-card", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 studentData: {
-                    id: currentStudentUser.id || currentStudentUser.regNo,
-                    rollNo: currentStudentUser.rollNo || currentStudentUser.roll_no || currentStudentUser.rollCode || "",
-                    regNo: currentStudentUser.regNo || currentStudentUser.reg_no || "",
+                    id: currentStudentUser.id || activeRoll || activeReg || "",
+                    rollNo: activeRoll || activeReg || "",
+                    regNo: activeReg || "",
                     name: currentStudentUser.name,
                     class: currentStudentUser.class,
                     dob: currentStudentUser.dob || "N/A",
@@ -1744,7 +1784,7 @@ window.loadStudentIDCardView = async () => {
                 secondaryColor: schoolDoc.secondaryColor || "#ffffff",
                 templateStyle: schoolDoc.idTemplateStyle || "wave",
                 schoolName: schoolDoc.schoolName || currentStudentSchoolDoc?.schoolName || $('student-dash-school-name')?.innerText || "INSTITUTION NAME",
-                schoolEmergency: schoolDoc.emergencyMobile || "N/A",
+                schoolEmergency: activeEmg,
                 signatureUrl: (schoolDoc.sigSettings && schoolDoc.sigSettings.idCard === false) ? "" : (schoolDoc.signatureUrl || ""),
                 schoolLogoUrl: schoolDoc.logoUrl || schoolDoc.schoolLogoUrl || "",
                 schoolNameColor: schoolDoc.schoolNameColor || "#ffffff",
