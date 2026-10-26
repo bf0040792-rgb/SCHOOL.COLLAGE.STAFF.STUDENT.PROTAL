@@ -1328,30 +1328,85 @@ document.getElementById("admissionToggle").addEventListener("change", async (e) 
 
 const convertToBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result); reader.onerror = (e) => reject(e); });
 
+async function compressImageForUpload(file, maxDimension = 1200, quality = 0.85) {
+    if (!file || !file.type.startsWith("image/")) return file;
+    if (file.type === "image/svg+xml" || file.size < 300 * 1024) return file;
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
+                canvas.toBlob((blob) => {
+                    if (blob && blob.size < file.size) {
+                        resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
+                    } else {
+                        resolve(file);
+                    }
+                }, "image/jpeg", quality);
+            };
+            img.onerror = () => resolve(file);
+            img.src = e.target.result;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+    });
+}
+
 const uploadToCloudinary = async (fileInputId, btnId, defaultText) => {
-    const file = document.getElementById(fileInputId).files[0]; if (!file) return null;
-    const btn = document.getElementById(btnId); btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Uploading...";
+    const inputEl = document.getElementById(fileInputId);
+    if (!inputEl || !inputEl.files || !inputEl.files[0]) return null;
+    let file = inputEl.files[0];
+    const btn = document.getElementById(btnId);
+    if (btn) {
+        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Uploading...";
+        btn.disabled = true;
+    }
     try {
+        file = await compressImageForUpload(file);
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", "ml_default");
-        
-        const res = await fetch("https://api.cloudinary.com/v1_1/disgtvs6f/image/upload", { 
-            method: "POST", 
-            body: formData 
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+        const res = await fetch("https://api.cloudinary.com/v1_1/disgtvs6f/image/upload", {
+            method: "POST",
+            body: formData,
+            signal: controller.signal
         });
-        
+        clearTimeout(timeoutId);
+
         const data = await res.json();
-        btn.innerHTML = defaultText;
-        
         if (data.error) {
-            alert("Cloudinary Error: " + data.error.message);
+            alert("Cloudinary Upload Error: " + data.error.message);
             return null;
         }
         return data.secure_url;
     } catch (e) {
-        alert("Upload Catch Error: " + e.message);
-        btn.innerHTML = defaultText; return null;
+        alert("Upload Error: " + (e.name === "AbortError" ? "Upload timed out. Please try a smaller image." : e.message));
+        return null;
+    } finally {
+        if (btn) {
+            btn.innerHTML = defaultText;
+            btn.disabled = false;
+        }
     }
 };
 
@@ -2963,31 +3018,51 @@ window.saveEmergency = async () => {
     } catch (e) { }
 };
 window.saveSignature = async () => {
+    const btn = document.getElementById("sig_btn");
+    const defaultText = "<i class='fas fa-pen-nib'></i> Save Signature & Preferences";
     let sigUrl = currentSignatureUrl;
-    if (document.getElementById("sig_photo").files.length > 0) {
-        sigUrl = await uploadToCloudinary("sig_photo", "sig_btn", "<i class='fas fa-pen-nib'></i> Save Signature & Preferences");
-        if (!sigUrl) return alert("Please select an image or wait for upload.");
+
+    if (!currentSchoolId) {
+        return alert("Error: School ID not loaded. Please refresh the portal.");
     }
 
-    const sigSettings = {
-        marksheet: document.getElementById("sig_on_marksheet") ? document.getElementById("sig_on_marksheet").checked : true,
-        idCard: document.getElementById("sig_on_id").checked,
-        bonafide: document.getElementById("sig_on_bonafide").checked,
-        admit: document.getElementById("sig_on_admit").checked
-    };
-
     try {
+        if (document.getElementById("sig_photo").files.length > 0) {
+            sigUrl = await uploadToCloudinary("sig_photo", "sig_btn", defaultText);
+            if (!sigUrl) return; // Alert already shown by uploadToCloudinary
+        }
+
+        if (btn) {
+            btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Saving...";
+            btn.disabled = true;
+        }
+
+        const sigSettings = {
+            marksheet: document.getElementById("sig_on_marksheet") ? document.getElementById("sig_on_marksheet").checked : true,
+            idCard: document.getElementById("sig_on_id") ? document.getElementById("sig_on_id").checked : true,
+            bonafide: document.getElementById("sig_on_bonafide") ? document.getElementById("sig_on_bonafide").checked : true,
+            admit: document.getElementById("sig_on_admit") ? document.getElementById("sig_on_admit").checked : true
+        };
+
         const { error } = await supabaseClient.from("schools").update({ signatureUrl: sigUrl, sigSettings: sigSettings }).eq("id", currentSchoolId);
         if (error) throw error;
         currentSignatureUrl = sigUrl;
         window.currentSigSettings = sigSettings;
         if (sigUrl) {
-            document.getElementById("preview-signature").src = sigUrl;
-            document.getElementById("print_sig").src = sigUrl;
-            document.getElementById("cert_sig").src = sigUrl;
+            const preview = document.getElementById("preview-signature");
+            if (preview) preview.src = sigUrl;
+            if (document.getElementById("print_sig")) document.getElementById("print_sig").src = sigUrl;
+            if (document.getElementById("cert_sig")) document.getElementById("cert_sig").src = sigUrl;
         }
-        alert("Signature & Preferences Saved!");
-    } catch (e) { console.error(e); }
+        alert("Signature & Preferences Saved Successfully!");
+    } catch (e) {
+        alert("Failed to save signature: " + e.message);
+    } finally {
+        if (btn) {
+            btn.innerHTML = defaultText;
+            btn.disabled = false;
+        }
+    }
 };
 
 let currentPaymentQrUrl = "";
@@ -4587,7 +4662,7 @@ window.showIDCard = async (id) => {
     document.getElementById("id-modal").style.display = "flex";
 
     try {
-        let schoolName = currentSchoolName || document.getElementById('school-name')?.innerText || "ABC SCHOOL NAME";
+        let schoolName = currentSchoolName || document.getElementById('top-school-name')?.innerText || document.getElementById('side-school-name')?.innerText || "INSTITUTION NAME";
         const templateStyle = currentTemplateStyle || "wave";
 
         const response = await fetch("https://school-backend-zlgy.onrender.com/api/generate-id-card", {
@@ -5139,7 +5214,7 @@ window.generateBatchIDCards = async (students) => {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     
-    let schoolName = currentSchoolName || document.getElementById('school-name')?.innerText || "ABC SCHOOL NAME";
+    let schoolName = currentSchoolName || document.getElementById('top-school-name')?.innerText || document.getElementById('side-school-name')?.innerText || "INSTITUTION NAME";
     const templateStyle = currentTemplateStyle || "wave";
     
     const cardW = 54; const cardH = 86;

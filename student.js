@@ -1729,7 +1729,7 @@ window.downloadStudentIDCard = async () => {
                 themeColor: schoolDoc.themeColor || "#1e3c72",
                 secondaryColor: schoolDoc.secondaryColor || "#ffffff",
                 templateStyle: schoolDoc.idTemplateStyle || "wave",
-                schoolName: schoolDoc.schoolName || "INSTITUTION NAME",
+                schoolName: schoolDoc.schoolName || currentStudentSchoolDoc?.schoolName || $('student-dash-school-name')?.innerText || "INSTITUTION NAME",
                 schoolEmergency: schoolDoc.emergencyMobile || "N/A",
                 signatureUrl: (schoolDoc.sigSettings && schoolDoc.sigSettings.idCard === false) ? "" : (schoolDoc.signatureUrl || ""),
                 schoolLogoUrl: schoolDoc.logoUrl || schoolDoc.schoolLogoUrl || "",

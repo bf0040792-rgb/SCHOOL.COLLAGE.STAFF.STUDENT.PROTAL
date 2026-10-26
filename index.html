@@ -2289,7 +2289,7 @@
                                 <div class="form-group" style="flex:1;"><label>Principal's Signature (Auto-removes
                                         white
                                         background & prints at bottom right)</label><input type="file" id="sig_photo"
-                                        accept="image/*"></div>
+                                        accept="image/*" onchange="if(this.files && this.files[0]){const r=new FileReader();r.onload=e=>{const p=document.getElementById('preview-signature');if(p)p.src=e.target.result;};r.readAsDataURL(this.files[0]);}"></div>
                                 <img src="https://via.placeholder.com/100x40?text=Signature" id="preview-signature"
                                     class="preview-img">
                             </div>
