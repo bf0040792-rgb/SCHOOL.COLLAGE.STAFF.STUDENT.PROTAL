@@ -3740,7 +3740,7 @@ function renderStudentsTable(className, searchTerm = null, statusFilter = null) 
         const statusIcon = safeStatus === 'Approved' ? '<i class="fas fa-check"></i>' : '<i class="fas fa-clock"></i>';
 
         const lockBtn = locked 
-            ? `<button class="action-btn btn-green" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, false)" title="Unblock Student Account" style="background:#10b981 !important; color:white !important; font-weight:700;"><i class="fas fa-unlock"></i> Unblock</button>` 
+            ? `<button class="action-btn btn-green" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, false)" title="Unlock Account" style="background:#10b981 !important; color:white !important;"><i class="fas fa-unlock"></i></button>` 
             : `<button class="action-btn btn-dark" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, true)" title="Lock Account"><i class="fas fa-lock"></i></button>`;
 
         const actionBtns = safeStatus === "Pending"
@@ -3756,7 +3756,7 @@ function renderStudentsTable(className, searchTerm = null, statusFilter = null) 
         html += `<tr class="${locked ? 'locked-row' : ''}">
             <td style="text-align:center;"><input type="checkbox" class="student-select-checkbox" data-id="${safeId}" value="${safeId}" onchange="window.toggleStudentSelection(this.dataset.id || this.value, this.checked)" ${window.selectedStudentIds.has(dt.id) ? 'checked' : ''}></td>
             <td><img src="${safePhoto}" class="img-circle"></td>
-            <td><strong style="display:block; font-size:13px;">${safeName} ${locked ? '<span style="background:#fee2e2; color:#b91c1c; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:700; display:inline-block;"><i class="fas fa-user-lock"></i> BLOCKED</span>' : ''}</strong><small style="color:#7f8c8d;">${safeMobile === 'N/A' ? 'No Mobile' : safeMobile}</small></td>
+            <td><strong style="display:block; font-size:13px;">${safeName} ${locked ? '<i class="fas fa-lock" style="color:#ef4444; margin-left:5px;" title="Account Locked"></i>' : ''}</strong><small style="color:#7f8c8d;">${safeMobile === 'N/A' ? 'No Mobile' : safeMobile}</small></td>
             <td><span style="font-weight:bold; font-size:13px; color:#333;">${safeRollNo}</span></td>
             <td><span style="background:#eaf4ff; color:#2c7be5; padding:3px 8px; border-radius:12px; font-size:12px; font-weight:bold;">Class: ${safeClass}</span>${dt.subjects && dt.subjects.length > 0 ? `<br><small style="color:#64748b; font-size:10px;">` + escapeHtml(dt.subjects.join(", ")) + `</small>` : ""}</td>
             <td><span style="font-size:12px; display:block;"><b>P:</b> ${safeParentage}</span><span style="font-size:12px; display:block;"><b>M:</b> ${safeMother}</span></td>
@@ -4287,16 +4287,11 @@ window.deleteStudent = async (id) => {
 };
 
 window.toggleStudentLock = async (id, state) => {
-    const isLocking = state;
-    const promptMsg = isLocking 
-        ? "Lock this student's account?" 
-        : "Unblock this student's account?\n\nStudent's security PIN will be reset, and the student will set a new PIN upon next login.";
-
-    if (confirm(promptMsg)) {
+    if (confirm(state ? "Lock this student's account?" : "Unlock this student's account?")) {
         try {
-            const { error: rpcError } = await supabaseClient.rpc('update_student', { p_student_id: id, p_payload: { lockedOut: isLocking } });
+            const { error: rpcError } = await supabaseClient.rpc('update_student', { p_student_id: id, p_payload: { lockedOut: state } });
             if (rpcError) throw new Error(rpcError.message);
-            alert(isLocking ? "Student account locked." : "Student ID unblocked successfully! PIN reset ho gaya hai, student ab login karke naya PIN set karega.");
+            alert(state ? "Student account locked." : "Student account unlocked successfully!");
             loadStudents();
         } catch (e) {
             alert("Error locking/unlocking student: " + e.message);
@@ -7461,7 +7456,18 @@ window.doStudentPortalLogin = async (selectedSchoolId = null) => {
             const sub = document.getElementById("pin-create-subtitle");
             if (sub) sub.innerText = "Welcome " + (result.student?.name || "Student") + "! Set your 4-digit PIN";
         } else {
-            loadStudentDashboard();
+            overlay.style.display = "none";
+            loginWrapper.style.display = "none";
+            document.getElementById("dashboard-wrapper").style.display = "none";
+            document.getElementById("staff-dashboard-wrapper").style.display = "none";
+            document.getElementById("student-dashboard-wrapper").style.display = "none";
+            document.getElementById("pin-wrapper").style.display = "flex";
+            document.getElementById("enter-pin-box").style.display = "block";
+            document.getElementById("create-pin-box").style.display = "none";
+            const lp = document.getElementById("c_loginPin");
+            if (lp) { lp.value = ""; lp.disabled = false; lp.focus(); }
+            const sub = document.getElementById("pin-unlock-subtitle");
+            if (sub) sub.innerText = "Student PIN Unlock (" + (result.student?.name || "Student") + ")";
         }
     } catch (error) {
         console.error("Student Login Error:", error.message);
