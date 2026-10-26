@@ -400,6 +400,23 @@
                 <span>Logout</span> <i class="fas fa-sign-out-alt"></i>
             </button>
         </div>
+
+        <div class="glass-login-box" id="blocked-pin-box" style="display:none; text-align:center;">
+            <div class="pro-icon-container" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);"><i class="fas fa-user-lock"></i></div>
+            <h2 class="glass-login-title" style="font-size:1.3rem; letter-spacing:4px; color:#ef4444; margin-bottom:4px;">ACCOUNT BLOCKED</h2>
+            <p id="pin-blocked-name" style="font-size:13px; color:#fff; font-weight:700; margin-bottom:12px;"></p>
+            <div style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 14px 16px; margin: 8px 0 18px; text-align: left;">
+                <p style="font-size:12px; color:#fca5a5; line-height: 1.5; margin-bottom: 6px;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i><strong>Aapki Student ID block kar di gayi hai!</strong>
+                </p>
+                <p style="font-size:11px; color:rgba(255,255,255,0.75); line-height: 1.4; margin:0;">
+                    Aapne 3 baar galat PIN enter kiya hai. Kripya apne School / College administration ya Staff member se contact karein apni ID unblock karwane ke liye.
+                </p>
+            </div>
+            <button class="glass-login-btn" style="background: #ef4444 !important; color: #fff !important; box-shadow: 0 4px 15px rgba(239,68,68,0.4) !important;" onclick="logoutFromPin()">
+                <span>Back to Login</span> <i class="fas fa-arrow-left"></i>
+            </button>
+        </div>
     </div>
 
     <!-- SCHOOL EMERGENCY TICKER -->

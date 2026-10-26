@@ -1087,6 +1087,7 @@ window.logoutStudent = () => {
     // Fully clear sensitive student state
     localStorage.removeItem('studentToken');
     sessionStorage.removeItem('studentToken');
+    window.currentStudentPin = null;
     supabaseClient = rebuildSupabaseClient();
     studentSessionEpoch += 1; // invalidate any in-flight response from this session
     currentStudentUser = null;
@@ -1108,8 +1109,17 @@ window.logoutStudent = () => {
     });
 
     $('student-dashboard-wrapper') && ($('student-dashboard-wrapper').style.display = 'none');
+    $('pin-wrapper') && ($('pin-wrapper').style.display = 'none');
+    $('blocked-pin-box') && ($('blocked-pin-box').style.display = 'none');
+    $('enter-pin-box') && ($('enter-pin-box').style.display = 'none');
+    $('create-pin-box') && ($('create-pin-box').style.display = 'none');
+    $('login-wrapper') && ($('login-wrapper').style.display = 'flex');
     $('student-login-wrapper') && ($('student-login-wrapper').style.display = 'flex');
     $('student-login-password') && ($('student-login-password').value = '');
+    const cPin = $('c_loginPin');
+    if (cPin) { cPin.value = ''; cPin.disabled = false; }
+    const err = $('c_pinErrorMsg');
+    if (err) err.style.display = 'none';
 };
 
 // --- DATA FETCHING & UI RENDERING FUNCTIONS --- //

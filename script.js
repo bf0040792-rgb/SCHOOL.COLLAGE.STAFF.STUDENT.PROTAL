@@ -515,14 +515,84 @@ window.saveActiveRolePin = async () => {
 };
 window.saveChairmanPin = window.saveActiveRolePin;
 
-window.verifyActiveRolePin = () => {
+window.verifyActiveRolePin = async () => {
     const input = document.getElementById("c_loginPin");
     const pin = input ? input.value.trim() : '';
+    if (!pin || pin.length !== 4) return;
+
+    if (window.pinActiveRole === 'student') {
+        const token = localStorage.getItem('studentToken') || sessionStorage.getItem('studentToken');
+        const err = document.getElementById("c_pinErrorMsg");
+        if (input) input.disabled = true;
+
+        try {
+            const { data: res, error } = await supabaseClient.rpc('verify_student_pin', {
+                p_token: token,
+                p_pin: pin
+            });
+
+            if (error) throw error;
+
+            if (res && res.success) {
+                if (input) { input.value = ''; input.disabled = false; }
+                if (err) err.style.display = 'none';
+                window.unlockActiveRoleDashboard();
+                return;
+            }
+
+            // PIN was wrong or account blocked
+            if (res && res.locked) {
+                // Clear active tokens immediately
+                localStorage.removeItem('studentToken');
+                sessionStorage.removeItem('studentToken');
+                window.currentStudentPin = null;
+
+                if (input) { input.value = ''; input.disabled = false; }
+
+                // Within 1 second: display ACCOUNT BLOCKED screen without page refresh!
+                document.getElementById("enter-pin-box").style.display = "none";
+                document.getElementById("create-pin-box").style.display = "none";
+                const blockedBox = document.getElementById("blocked-pin-box");
+                if (blockedBox) {
+                    const nameEl = document.getElementById("pin-blocked-name");
+                    if (nameEl && currentStudentUser) {
+                        nameEl.innerText = "Student: " + (currentStudentUser.name || 'Student');
+                    }
+                    blockedBox.style.display = "block";
+                }
+                return;
+            }
+
+            // Incorrect PIN (attempts remaining)
+            const attemptsMsg = res?.error || `Incorrect PIN! ${res?.attemptsLeft || ''} attempt(s) remaining.`;
+            if (err) {
+                err.innerText = attemptsMsg;
+                err.style.color = (res?.attemptsLeft === 1) ? '#ef4444' : '#f59e0b';
+                err.style.display = "block";
+                setTimeout(() => { if (err) err.style.display = "none"; }, 3500);
+            }
+            if (input) {
+                input.value = '';
+                input.disabled = false;
+                input.focus();
+            }
+        } catch (e) {
+            console.error("Student verify PIN failed:", e);
+            if (err) {
+                err.innerText = e.message || "Verification failed";
+                err.style.color = "#ef4444";
+                err.style.display = "block";
+                setTimeout(() => { if (err) err.style.display = "none"; }, 3000);
+            }
+            if (input) { input.disabled = false; input.focus(); }
+        }
+        return;
+    }
+
+    // Staff or Chairman PIN verification
     let expectedPin = null;
     if (window.pinActiveRole === 'staff') {
         expectedPin = window.currentStaffPin;
-    } else if (window.pinActiveRole === 'student') {
-        expectedPin = window.currentStudentPin;
     } else {
         expectedPin = window.currentChairmanPin;
     }
@@ -533,16 +603,33 @@ window.verifyActiveRolePin = () => {
     } else {
         const err = document.getElementById("c_pinErrorMsg");
         if (err) {
+            err.innerText = "Incorrect PIN!";
+            err.style.color = "#ef4444";
             err.style.display = "block";
-            setTimeout(() => err.style.display = "none", 2000);
+            setTimeout(() => { if (err) err.style.display = "none"; }, 2000);
         }
+        if (input) { input.value = ''; input.focus(); }
     }
 };
 window.verifyChairmanPin = window.verifyActiveRolePin;
 
 window.logoutFromPin = async () => {
+    localStorage.removeItem('studentToken');
+    sessionStorage.removeItem('studentToken');
+    window.currentStudentPin = null;
+
+    const blockedBox = document.getElementById("blocked-pin-box");
+    if (blockedBox) blockedBox.style.display = "none";
+    document.getElementById("pin-wrapper").style.display = "none";
+
     if (window.pinActiveRole === 'student') {
         if (typeof window.logoutStudent === 'function') window.logoutStudent();
+        else {
+            const loginWrap = document.getElementById("login-wrapper");
+            if (loginWrap) loginWrap.style.display = "flex";
+            const errBox = document.getElementById("student-login-err");
+            if (errBox) errBox.style.display = "none";
+        }
     } else {
         try { await supabaseClient.auth.signOut(); } catch (_) {}
         if (typeof window.doLogout === 'function') window.doLogout();
@@ -3652,7 +3739,9 @@ function renderStudentsTable(className, searchTerm = null, statusFilter = null) 
         const statusColor = safeStatus === 'Approved' ? '#27ae60' : (safeStatus === 'Pending' ? '#e67e22' : '#e53e3e'); 
         const statusIcon = safeStatus === 'Approved' ? '<i class="fas fa-check"></i>' : '<i class="fas fa-clock"></i>';
 
-        const lockBtn = locked ? `<button class="action-btn btn-green" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, false)" title="Unlock Account"><i class="fas fa-unlock"></i></button>` : `<button class="action-btn btn-dark" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, true)" title="Lock Account"><i class="fas fa-lock"></i></button>`;
+        const lockBtn = locked 
+            ? `<button class="action-btn btn-green" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, false)" title="Unblock Student Account" style="background:#10b981 !important; color:white !important; font-weight:700;"><i class="fas fa-unlock"></i> Unblock</button>` 
+            : `<button class="action-btn btn-dark" data-id="${safeId}" onclick="toggleStudentLock(this.dataset.id, true)" title="Lock Account"><i class="fas fa-lock"></i></button>`;
 
         const actionBtns = safeStatus === "Pending"
             ? (dt._isNewAdmission 
@@ -3667,7 +3756,7 @@ function renderStudentsTable(className, searchTerm = null, statusFilter = null) 
         html += `<tr class="${locked ? 'locked-row' : ''}">
             <td style="text-align:center;"><input type="checkbox" class="student-select-checkbox" data-id="${safeId}" value="${safeId}" onchange="window.toggleStudentSelection(this.dataset.id || this.value, this.checked)" ${window.selectedStudentIds.has(dt.id) ? 'checked' : ''}></td>
             <td><img src="${safePhoto}" class="img-circle"></td>
-            <td><strong style="display:block; font-size:13px;">${safeName} ${locked ? '<i class="fas fa-lock" style="color:#e53e3e"></i>' : ''}</strong><small style="color:#7f8c8d;">${safeMobile === 'N/A' ? 'No Mobile' : safeMobile}</small></td>
+            <td><strong style="display:block; font-size:13px;">${safeName} ${locked ? '<span style="background:#fee2e2; color:#b91c1c; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:700; display:inline-block;"><i class="fas fa-user-lock"></i> BLOCKED</span>' : ''}</strong><small style="color:#7f8c8d;">${safeMobile === 'N/A' ? 'No Mobile' : safeMobile}</small></td>
             <td><span style="font-weight:bold; font-size:13px; color:#333;">${safeRollNo}</span></td>
             <td><span style="background:#eaf4ff; color:#2c7be5; padding:3px 8px; border-radius:12px; font-size:12px; font-weight:bold;">Class: ${safeClass}</span>${dt.subjects && dt.subjects.length > 0 ? `<br><small style="color:#64748b; font-size:10px;">` + escapeHtml(dt.subjects.join(", ")) + `</small>` : ""}</td>
             <td><span style="font-size:12px; display:block;"><b>P:</b> ${safeParentage}</span><span style="font-size:12px; display:block;"><b>M:</b> ${safeMother}</span></td>
@@ -4198,10 +4287,16 @@ window.deleteStudent = async (id) => {
 };
 
 window.toggleStudentLock = async (id, state) => {
-    if (confirm(state ? "Lock this student's account?" : "Unlock this student's account?")) {
+    const isLocking = state;
+    const promptMsg = isLocking 
+        ? "Lock this student's account?" 
+        : "Unblock this student's account?\n\nStudent's security PIN will be reset, and the student will set a new PIN upon next login.";
+
+    if (confirm(promptMsg)) {
         try {
-            const { error: rpcError } = await supabaseClient.rpc('update_student', { p_student_id: id, p_payload: { lockedOut: state } });
+            const { error: rpcError } = await supabaseClient.rpc('update_student', { p_student_id: id, p_payload: { lockedOut: isLocking } });
             if (rpcError) throw new Error(rpcError.message);
+            alert(isLocking ? "Student account locked." : "Student ID unblocked successfully! PIN reset ho gaya hai, student ab login karke naya PIN set karega.");
             loadStudents();
         } catch (e) {
             alert("Error locking/unlocking student: " + e.message);
@@ -7396,6 +7491,19 @@ window.tryResumeStudentSession = async () => {
         if (error || !res || !res.success) {
             localStorage.removeItem('studentToken');
             sessionStorage.removeItem('studentToken');
+            if (res && res.locked) {
+                overlay.style.display = "none";
+                loginWrapper.style.display = "none";
+                document.getElementById("dashboard-wrapper").style.display = "none";
+                document.getElementById("staff-dashboard-wrapper").style.display = "none";
+                document.getElementById("student-dashboard-wrapper").style.display = "none";
+                document.getElementById("pin-wrapper").style.display = "flex";
+                document.getElementById("enter-pin-box").style.display = "none";
+                document.getElementById("create-pin-box").style.display = "none";
+                const bb = document.getElementById("blocked-pin-box");
+                if (bb) bb.style.display = "block";
+                return true;
+            }
             return false;
         }
 
