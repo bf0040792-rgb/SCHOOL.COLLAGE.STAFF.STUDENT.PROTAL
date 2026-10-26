@@ -549,7 +549,7 @@ window.verifyActiveRolePin = async () => {
 
                 if (input) { input.value = ''; input.disabled = false; }
 
-                // Within 1 second: display ACCOUNT BLOCKED screen without page refresh!
+                // Within 1 second: display ACCOUNT LOCKED screen without page refresh!
                 document.getElementById("enter-pin-box").style.display = "none";
                 document.getElementById("create-pin-box").style.display = "none";
                 const blockedBox = document.getElementById("blocked-pin-box");
@@ -557,6 +557,10 @@ window.verifyActiveRolePin = async () => {
                     const nameEl = document.getElementById("pin-blocked-name");
                     if (nameEl && currentStudentUser) {
                         nameEl.innerText = "Student: " + (currentStudentUser.name || 'Student');
+                    }
+                    const msgEl = document.getElementById("pin-blocked-msg");
+                    if (msgEl && res && res.error) {
+                        msgEl.innerHTML = `<i class="fas fa-lock" style="margin-right:6px; color:#ef4444;"></i>${res.error}`;
                     }
                     blockedBox.style.display = "block";
                 }
@@ -7507,7 +7511,13 @@ window.tryResumeStudentSession = async () => {
                 document.getElementById("enter-pin-box").style.display = "none";
                 document.getElementById("create-pin-box").style.display = "none";
                 const bb = document.getElementById("blocked-pin-box");
-                if (bb) bb.style.display = "block";
+                if (bb) {
+                    const msgEl = document.getElementById("pin-blocked-msg");
+                    if (msgEl && res && res.error) {
+                        msgEl.innerHTML = `<i class="fas fa-lock" style="margin-right:6px; color:#ef4444;"></i>${res.error}`;
+                    }
+                    bb.style.display = "block";
+                }
                 return true;
             }
             return false;
