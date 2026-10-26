@@ -339,6 +339,8 @@ async function loadStudentDashboard() {
     if (currentSchoolId) {
         try {
             window.currentFeatureSettings = await readSchoolFeatureSettings(currentSchoolId);
+            const { data: sDoc } = await supabaseClient.from('schools').select('*').eq('id', currentSchoolId).maybeSingle();
+            if (sDoc) currentStudentSchoolDoc = { ...(currentStudentSchoolDoc || {}), ...sDoc };
         } catch (e) {
             console.warn("Feature sync warning in student load:", e);
         }
@@ -1694,8 +1696,77 @@ window.downloadStudentAdmitCard = () => {
     window.print();
 };
 
-window.downloadStudentIDCard = () => {
-    window.print();
+window.downloadStudentIDCard = async () => {
+    if (!currentStudentUser) return;
+    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
+    if (due > 0) return alert("Digital ID Card is locked due to pending fees. Please clear your dues first.");
+
+    const btn = $('stu-btn-download-id');
+    const originalText = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Generating...";
+        btn.disabled = true;
+    }
+
+    try {
+        const schoolDoc = currentStudentSchoolDoc || {};
+        const response = await fetch("https://school-backend-zlgy.onrender.com/api/generate-id-card", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                studentData: {
+                    id: currentStudentUser.id || currentStudentUser.regNo,
+                    rollNo: currentStudentUser.rollNo || currentStudentUser.roll_no || currentStudentUser.rollCode || "",
+                    regNo: currentStudentUser.regNo || currentStudentUser.reg_no || "",
+                    name: currentStudentUser.name,
+                    class: currentStudentUser.class,
+                    dob: currentStudentUser.dob || "N/A",
+                    parentage: (currentStudentUser.parentage || currentStudentUser.fatherName) || "N/A",
+                    mobile: currentStudentUser.mobile || "N/A",
+                    address: currentStudentUser.address || "N/A",
+                    photoUrl: currentStudentUser.photoUrl || "https://via.placeholder.com/150"
+                },
+                themeColor: schoolDoc.themeColor || "#1e3c72",
+                secondaryColor: schoolDoc.secondaryColor || "#ffffff",
+                templateStyle: schoolDoc.idTemplateStyle || "wave",
+                schoolName: schoolDoc.schoolName || "INSTITUTION NAME",
+                schoolEmergency: schoolDoc.emergencyMobile || "N/A",
+                signatureUrl: (schoolDoc.sigSettings && schoolDoc.sigSettings.idCard === false) ? "" : (schoolDoc.signatureUrl || ""),
+                schoolLogoUrl: schoolDoc.logoUrl || schoolDoc.schoolLogoUrl || "",
+                schoolNameColor: schoolDoc.schoolNameColor || "#ffffff",
+                studentNameColor: schoolDoc.studentNameColor || "#d32f2f",
+                detailsColor: schoolDoc.detailsColor || "#333333",
+                photoBgColor: schoolDoc.photoBgColor || "#ffffff"
+            })
+        });
+        const data = await response.json();
+        if (data.success && data.idCardUrl) {
+            if (window.jspdf && window.jspdf.jsPDF) {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                pdf.addImage(data.idCardUrl, 'PNG', 10, 10, 54, 86);
+                pdf.save(`${currentStudentUser.name}_ID_Card.pdf`);
+            } else {
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write('<html><head><title>Student ID Card</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;"><img src="' + data.idCardUrl + '" style="max-height:90vh;" onload="window.print();"></body></html>');
+                    printWindow.document.close();
+                } else {
+                    window.print();
+                }
+            }
+        } else {
+            window.print();
+        }
+    } catch (e) {
+        console.error("Student ID card download error:", e);
+        window.print();
+    } finally {
+        if (btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
 };
 
 // ====== SMS & DIRECT BATCHMATE CHAT ======

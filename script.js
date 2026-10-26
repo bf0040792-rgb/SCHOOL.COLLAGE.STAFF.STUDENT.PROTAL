@@ -1146,10 +1146,13 @@ async function checkAdmissionStatus() {
 
         populateClassDropdowns();
         if (data.themeColor) { currentThemeColor = data.themeColor; document.getElementById("school_theme_color").value = currentThemeColor; document.documentElement.style.setProperty('--theme-color', currentThemeColor); }
+        if (data.secondaryColor) { currentSecondaryColor = data.secondaryColor; if (document.getElementById("school_secondary_color")) document.getElementById("school_secondary_color").value = currentSecondaryColor; }
+        if (data.idTemplateStyle) { currentTemplateStyle = data.idTemplateStyle; }
         if (data.schoolNameColor) { currentSchoolNameColor = data.schoolNameColor; if (document.getElementById("idSchoolNameColor")) document.getElementById("idSchoolNameColor").value = currentSchoolNameColor; }
         if (data.studentNameColor) { currentStudentNameColor = data.studentNameColor; if (document.getElementById("idStudentNameColor")) document.getElementById("idStudentNameColor").value = currentStudentNameColor; }
         if (data.detailsColor) { currentDetailsColor = data.detailsColor; if (document.getElementById("idDetailsColor")) document.getElementById("idDetailsColor").value = currentDetailsColor; }
         if (data.photoBgColor) { currentPhotoBgColor = data.photoBgColor; if (document.getElementById("idPhotoBgColor")) document.getElementById("idPhotoBgColor").value = currentPhotoBgColor; }
+        if (data.emergencyMobile && document.getElementById("school_emergency")) { document.getElementById("school_emergency").value = data.emergencyMobile; }
         if (data.emergencyTicker) { document.getElementById("ticker_input").value = data.emergencyTicker; }
 
         // Authority Enforcement: Hide restricted modules
@@ -4593,6 +4596,8 @@ window.showIDCard = async (id) => {
             body: JSON.stringify({
                 studentData: {
                     id: st.id || st.regNo,
+                    rollNo: st.rollNo || st.roll_no || st.rollCode || "",
+                    regNo: st.regNo || st.reg_no || "",
                     name: st.name,
                     class: st.class,
                     dob: st.dob || "N/A",
@@ -4605,13 +4610,14 @@ window.showIDCard = async (id) => {
                 secondaryColor: currentSecondaryColor || "#ffffff",
                 templateStyle: templateStyle,
                 schoolName: schoolName,
-                schoolEmergency: document.getElementById("school_emergency").value || "N/A",
+                schoolEmergency: document.getElementById("school_emergency")?.value || "N/A",
                 signatureUrl: (window.currentSigSettings && window.currentSigSettings.idCard === false) ? "" : currentSignatureUrl,
                 schoolLogoUrl: document.getElementById('print_school_logo')?.src || document.getElementById('school-logo')?.src || "",
                 schoolNameColor: document.getElementById('idSchoolNameColor')?.value || currentSchoolNameColor || "#ffffff",
                 studentNameColor: document.getElementById('idStudentNameColor')?.value || currentStudentNameColor || "#d32f2f",
                 detailsColor: document.getElementById('idDetailsColor')?.value || currentDetailsColor || "#333333",
-                photoBgColor: document.getElementById('idPhotoBgColor')?.value || currentPhotoBgColor || "#ffffff", textSettings: window.currentTextSettings
+                photoBgColor: document.getElementById('idPhotoBgColor')?.value || currentPhotoBgColor || "#ffffff",
+                textSettings: window.currentTextSettings
             })
         });
 
@@ -5151,6 +5157,8 @@ window.generateBatchIDCards = async (students) => {
                 body: JSON.stringify({
                     studentData: {
                         id: st.id || st.regNo,
+                        rollNo: st.rollNo || st.roll_no || st.rollCode || "",
+                        regNo: st.regNo || st.reg_no || "",
                         name: st.name,
                         class: st.class,
                         dob: st.dob || "N/A",
@@ -5169,7 +5177,8 @@ window.generateBatchIDCards = async (students) => {
                     schoolNameColor: document.getElementById('idSchoolNameColor')?.value || currentSchoolNameColor || "#ffffff",
                     studentNameColor: document.getElementById('idStudentNameColor')?.value || currentStudentNameColor || "#d32f2f",
                     detailsColor: document.getElementById('idDetailsColor')?.value || currentDetailsColor || "#333333",
-                    photoBgColor: document.getElementById('idPhotoBgColor')?.value || currentPhotoBgColor || "#ffffff", textSettings: window.currentTextSettings
+                    photoBgColor: document.getElementById('idPhotoBgColor')?.value || currentPhotoBgColor || "#ffffff",
+                    textSettings: window.currentTextSettings
                 })
             });
             const data = await response.json();
@@ -7825,7 +7834,10 @@ window.downloadStudentIDCard = async () => {
             body: JSON.stringify({
                 studentData: {
                     id: currentStudentUser.id || currentStudentUser.regNo,
-                    name: currentStudentUser.name, class: currentStudentUser.class,
+                    rollNo: currentStudentUser.rollNo || currentStudentUser.roll_no || currentStudentUser.rollCode || "",
+                    regNo: currentStudentUser.regNo || currentStudentUser.reg_no || "",
+                    name: currentStudentUser.name,
+                    class: currentStudentUser.class,
                     dob: currentStudentUser.dob || "N/A",
                     parentage: (currentStudentUser.parentage || currentStudentUser.fatherName) || "N/A",
                     mobile: currentStudentUser.mobile || "N/A",
@@ -7838,10 +7850,11 @@ window.downloadStudentIDCard = async () => {
                 schoolName: currentStudentSchoolDoc.schoolName || "SCHOOL NAME",
                 schoolEmergency: currentStudentSchoolDoc.emergencyMobile || "N/A",
                 signatureUrl: (currentStudentSchoolDoc.sigSettings && currentStudentSchoolDoc.sigSettings.idCard === false) ? "" : (currentStudentSchoolDoc.signatureUrl || ""),
-                schoolLogoUrl: currentStudentSchoolDoc.logoUrl || "",
+                schoolLogoUrl: currentStudentSchoolDoc.logoUrl || currentStudentSchoolDoc.schoolLogoUrl || "",
                 schoolNameColor: currentStudentSchoolDoc.schoolNameColor || "#ffffff",
                 studentNameColor: currentStudentSchoolDoc.studentNameColor || "#d32f2f",
-                detailsColor: currentStudentSchoolDoc.detailsColor || "#333333"
+                detailsColor: currentStudentSchoolDoc.detailsColor || "#333333",
+                photoBgColor: currentStudentSchoolDoc.photoBgColor || "#ffffff"
             })
         });
         const data = await response.json();
