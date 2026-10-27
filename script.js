@@ -6611,6 +6611,7 @@ function paFillSelect(id, rows, placeholder, extra) {
 
 function paRenderAll() {
     paFillSelect('pa_prog_dept', phaseACache.departments, 'Select department');
+    paFillSelect('pa_bulk_prog_dept', phaseACache.departments, 'Select department');
     paFillSelect('pa_level_prog', phaseACache.programs, '— Institution-wide —');
     paFillSelect('pa_sec_prog', phaseACache.programs, '—');
     paFillSelect('pa_sec_level', phaseACache.levels, '—');
@@ -6635,7 +6636,10 @@ function paRenderAll() {
         <td style="padding:8px;">${staffEsc(paName(phaseACache.departments, p.departmentId))}</td>
         <td style="padding:8px;">${staffEsc(p.levelType)}</td>
         <td style="padding:8px;">${p.status === 'active' ? '<span style="color:#16a34a;font-weight:bold;">Active</span>' : '<span style="color:#dc2626;font-weight:bold;">Inactive</span>'}</td>
-        <td style="padding:8px;"><button class="action-btn btn-blue" onclick="window.paSetProgramStatus('${p.id}', ${p.status === 'active' ? "'inactive'" : "'active'"})">${p.status === 'active' ? 'Deactivate' : 'Activate'}</button></td>
+        <td style="padding:8px; white-space:nowrap;">
+            <button class="action-btn btn-blue" onclick="window.paSetProgramStatus('${p.id}', ${p.status === 'active' ? "'inactive'" : "'active'"})">${p.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+            <button class="action-btn btn-red" style="background:#ef4444; color:#fff; margin-left:6px;" onclick="window.paDeleteProgram('${p.id}', '${staffEsc(p.name)}')"><i class="fas fa-trash"></i> Delete</button>
+        </td>
     </tr>`).join('') : '<tr><td colspan="6" style="padding:14px;text-align:center;color:#888;">No programs yet.</td></tr>';
 
     const sb = document.getElementById('pa-session-body');
@@ -6709,6 +6713,162 @@ window.paSetProgramStatus = async (id, status) => {
     const { error } = await supabaseClient.from('programs').update({ status }).eq('id', id);
     if (error) return alert('Error: ' + error.message);
     await paLoadCache(); paRenderAll();
+};
+
+window.paDeleteProgram = async (id, name) => {
+    if (!confirm(`Are you sure you want to permanently delete program "${name}"? This will also remove all its generated levels/semesters.`)) return;
+    try {
+        await supabaseClient.from('academic_levels').delete().eq('programId', id);
+        const { error } = await supabaseClient.from('programs').delete().eq('id', id);
+        if (error) throw error;
+        alert(`Program "${name}" deleted successfully.`);
+        await paLoadCache(); paRenderAll();
+    } catch (e) {
+        alert("Error deleting program: " + (e.message || "Failed"));
+    }
+};
+
+window.togglePaBulkAddSection = (force) => {
+    const card = document.getElementById('pa-bulk-add-card');
+    if (!card) return;
+    const isVisible = card.style.display !== 'none';
+    const show = force !== undefined ? force : !isVisible;
+    card.style.display = show ? 'block' : 'none';
+    if (show) {
+        // Populate departments select
+        const deptSel = document.getElementById('pa_bulk_prog_dept');
+        if (deptSel) {
+            deptSel.innerHTML = phaseACache.departments.length 
+                ? phaseACache.departments.map(d => `<option value="${d.id}">${staffEsc(d.name)} (${staffEsc(d.code)})</option>`).join('')
+                : '<option value="">No departments found</option>';
+        }
+        document.getElementById('pa_bulk_programs_input')?.focus();
+    }
+};
+
+window.paLoadHonoursPreset = () => {
+    const preset = [
+        "BACHELORS (HONOURS) WITH ACCOUNTING & TAXATION (COMMERCE) AS MAJOR",
+        "BACHELORS (HONOURS) WITH ARABIC LITERATURE AS MAJOR",
+        "BACHELORS (HONOURS) WITH BIO-CHEMISTRY AS MAJOR",
+        "BACHELORS (HONOURS) WITH BOTANY AS MAJOR",
+        "BACHELORS (HONOURS) WITH CHEMISTRY AS MAJOR",
+        "BACHELORS (HONOURS) WITH CLINICAL BIO-CHEMISTRY AS MAJOR",
+        "BACHELORS (HONOURS) WITH COMPUTER APPLICATIONS AS MAJOR",
+        "BACHELORS (HONOURS) WITH ECONOMICS AS MAJOR",
+        "BACHELORS (HONOURS) WITH EDUCATION AS MAJOR",
+        "BACHELORS (HONOURS) WITH GEOGRAPHY AS MAJOR",
+        "BACHELORS (HONOURS) WITH GEOLOGY AS MAJOR",
+        "BACHELORS (HONOURS) WITH HISTORY AS MAJOR",
+        "BACHELORS (HONOURS) WITH INDIAN MUSIC AS MAJOR",
+        "BACHELORS (HONOURS) WITH KASHMIRI LITERATURE AS MAJOR",
+        "BACHELORS (HONOURS) WITH MATHEMATICS/APPLIED MATHEMATICS AS MAJOR",
+        "BACHELORS (HONOURS) WITH PHYSICS AS MAJOR",
+        "BACHELORS (HONOURS) WITH POLITICAL SCIENCE AS MAJOR",
+        "BACHELORS (HONOURS) WITH SOCIOLOGY AS MAJOR",
+        "BACHELORS (HONOURS) WITH TOURISM AND TRAVEL MANAGEMENT AS MAJOR",
+        "BACHELORS (HONOURS) WITH URDU LITERATURE AS MAJOR",
+        "BACHELORS (HONOURS) WITH ZOOLOGY AS MAJOR"
+    ];
+    const ta = document.getElementById('pa_bulk_programs_input');
+    if (ta) {
+        ta.value = preset.join('\n');
+    }
+};
+
+window.paSaveBulkPrograms = async () => {
+    const deptId = document.getElementById('pa_bulk_prog_dept')?.value;
+    if (!deptId) return alert("Please select a department first (or create a department if none exists).");
+    const rawText = document.getElementById('pa_bulk_programs_input')?.value || "";
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return alert("Please enter or paste at least one course name.");
+
+    const levelType = document.getElementById('pa_bulk_prog_leveltype')?.value || 'semester';
+    const duration = Number(document.getElementById('pa_bulk_prog_duration')?.value || 8);
+    const btn = document.getElementById('pa_bulk_save_btn');
+    const statusEl = document.getElementById('pa_bulk_status');
+
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.innerText = `Adding 0 of ${lines.length} courses...`;
+
+    const existingCodes = new Set((phaseACache.programs || []).map(p => (p.code || '').toUpperCase()));
+
+    function generateCodeFromName(name, idx) {
+        const match = name.match(/WITH\s+(.*?)\s+AS\s+MAJOR/i);
+        let subject = match ? match[1].trim() : name;
+        subject = subject.replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+        const words = subject.split(/\s+/).filter(w => w.length > 0);
+        let baseCode = "";
+        if (words.length === 1) {
+            baseCode = "B-" + words[0].slice(0, 4).toUpperCase();
+        } else if (words.length === 2) {
+            baseCode = "B-" + (words[0].slice(0, 3) + words[1].slice(0, 3)).toUpperCase();
+        } else {
+            baseCode = "B-" + words.map(w => w[0]).join('').toUpperCase();
+        }
+        if (!baseCode || baseCode === "B-") baseCode = `B-PROG${idx + 1}`;
+        let finalCode = baseCode;
+        let suffix = 1;
+        while (existingCodes.has(finalCode)) {
+            suffix++;
+            finalCode = `${baseCode}-${suffix}`;
+        }
+        existingCodes.add(finalCode);
+        return finalCode;
+    }
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const progName = lines[i];
+        const progCode = generateCodeFromName(progName, i);
+        if (statusEl) statusEl.innerText = `Adding ${i + 1} of ${lines.length}: ${progName.slice(0, 25)}...`;
+
+        try {
+            const { data: newProg, error: pErr } = await supabaseClient.from('programs').insert({
+                schoolId: currentSchoolId,
+                departmentId: deptId,
+                name: progName,
+                code: progCode,
+                levelType: levelType,
+                duration: duration || null,
+                status: 'active'
+            }).select().single();
+
+            if (pErr) throw pErr;
+
+            if (duration > 0 && newProg?.id) {
+                const unit = levelType === 'semester' ? 'Semester' : levelType === 'year' ? 'Year' : 'Level';
+                const rows = [];
+                for (let lv = 1; lv <= duration; lv++) {
+                    rows.push({
+                        schoolId: currentSchoolId,
+                        departmentId: deptId,
+                        programId: newProg.id,
+                        name: `${unit} ${lv}`,
+                        code: `${progCode}-${unit.slice(0, 3).toUpperCase()}${lv}`,
+                        kind: levelType === 'custom' ? 'custom' : levelType,
+                        sortOrder: lv
+                    });
+                }
+                await supabaseClient.from('academic_levels').insert(rows);
+            }
+            successCount++;
+        } catch (err) {
+            console.error(`Failed to add program "${progName}":`, err);
+            failedCount++;
+        }
+    }
+
+    if (btn) btn.disabled = false;
+    if (statusEl) statusEl.innerText = `Done! Added: ${successCount}, Errors: ${failedCount}`;
+
+    alert(`Quick Add Complete!\n\nSuccessfully added: ${successCount} courses with auto-generated levels/semesters.${failedCount > 0 ? `\nFailed: ${failedCount}` : ''}`);
+    document.getElementById('pa_bulk_programs_input').value = '';
+    window.togglePaBulkAddSection(false);
+    await paLoadCache();
+    paRenderAll();
 };
 
 window.paSaveSession = async () => {
@@ -7963,7 +8123,23 @@ async function loadStudentDashboard() {
     document.getElementById("banner-name").innerText = currentStudentUser.name || "N/A";
     document.getElementById("banner-parentage").innerText = (currentStudentUser.parentage || currentStudentUser.fatherName) || "N/A";
     document.getElementById("banner-class").innerText = currentStudentUser.class || "N/A";
-    document.getElementById("banner-reg").innerText = currentStudentUser.regNo || "N/A";
+
+    // Robust Roll No / Reg No formatting
+    const rollNo = (currentStudentUser?.rollNo && String(currentStudentUser.rollNo).trim() !== 'N/A') 
+        ? String(currentStudentUser.rollNo).trim() 
+        : ((currentStudentUser?.roll && String(currentStudentUser.roll).trim() !== 'N/A') ? String(currentStudentUser.roll).trim() : '');
+    const regNo = (currentStudentUser?.regNo && String(currentStudentUser.regNo).trim() !== 'N/A') 
+        ? String(currentStudentUser.regNo).trim() 
+        : ((currentStudentUser?.reg && String(currentStudentUser.reg).trim() !== 'N/A') ? String(currentStudentUser.reg).trim() : '');
+    let displayRollReg = 'N/A';
+    if (rollNo && regNo && rollNo !== regNo) {
+        displayRollReg = `${rollNo} / ${regNo}`;
+    } else if (rollNo) {
+        displayRollReg = rollNo;
+    } else if (regNo) {
+        displayRollReg = regNo;
+    }
+    document.getElementById("banner-reg").innerText = displayRollReg;
 
     // Format DOB if available
     let formattedDob = "N/A";
@@ -7979,7 +8155,16 @@ async function loadStudentDashboard() {
 
     document.getElementById("banner-contact").innerText = currentStudentUser.mobile || "N/A";
     document.getElementById("banner-blood").innerText = currentStudentUser.bloodGroup || "N/A";
-    document.getElementById("banner-emergency").innerText = currentStudentUser.emergencyNo || "N/A";
+
+    // Robust Emergency Mobile Number formatting (checks school setting first)
+    const emgNo = (currentStudentSchoolDoc?.emergencyMobile && String(currentStudentSchoolDoc.emergencyMobile).trim() !== 'N/A')
+        ? String(currentStudentSchoolDoc.emergencyMobile).trim()
+        : ((currentStudentSchoolDoc?.emergencyNo && String(currentStudentSchoolDoc.emergencyNo).trim() !== 'N/A')
+            ? String(currentStudentSchoolDoc.emergencyNo).trim()
+            : ((currentStudentUser?.emergencyNo && String(currentStudentUser.emergencyNo).trim() !== 'N/A')
+                ? String(currentStudentUser.emergencyNo).trim()
+                : 'N/A'));
+    document.getElementById("banner-emergency").innerText = emgNo;
 
     // 1. Premium Styling & Colors (Fixed professional pastel pink matching reference image)
     const banner = document.getElementById("student-id-banner");
@@ -7990,7 +8175,7 @@ async function loadStudentDashboard() {
     }
 
     // 3. Comprehensive QR Code Data
-    const qrString = `Name: ${currentStudentUser.name}\nParentage: ${currentStudentUser.parentage || currentStudentUser.fatherName || 'N/A'}\nClass: ${currentStudentUser.class}\nReg/Roll: ${currentStudentUser.regNo || 'N/A'}\nDOB: ${formattedDob}\nContact: ${currentStudentUser.mobile || 'N/A'}`;
+    const qrString = `Name: ${currentStudentUser.name}\nParentage: ${currentStudentUser.parentage || currentStudentUser.fatherName || 'N/A'}\nClass: ${currentStudentUser.class}\nRoll: ${rollNo || 'N/A'}\nReg: ${regNo || 'N/A'}\nEmergency: ${emgNo || 'N/A'}\nDOB: ${formattedDob}\nContact: ${currentStudentUser.mobile || 'N/A'}`;
     const qrElem = document.getElementById("stu-banner-qr");
     if (qrElem) {
         qrElem.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(qrString);
@@ -8186,13 +8371,27 @@ window.downloadStudentIDCard = async () => {
     btn.disabled = true;
 
     try {
+        const activeRoll = (currentStudentUser?.rollNo && String(currentStudentUser.rollNo).trim() !== 'N/A')
+            ? String(currentStudentUser.rollNo).trim()
+            : ((currentStudentUser?.roll && String(currentStudentUser.roll).trim() !== 'N/A') ? String(currentStudentUser.roll).trim() : '');
+        const activeReg = (currentStudentUser?.regNo && String(currentStudentUser.regNo).trim() !== 'N/A')
+            ? String(currentStudentUser.regNo).trim()
+            : ((currentStudentUser?.reg && String(currentStudentUser.reg).trim() !== 'N/A') ? String(currentStudentUser.reg).trim() : '');
+        const activeEmg = (currentStudentSchoolDoc?.emergencyMobile && String(currentStudentSchoolDoc.emergencyMobile).trim() !== 'N/A')
+            ? String(currentStudentSchoolDoc.emergencyMobile).trim()
+            : ((currentStudentSchoolDoc?.emergencyNo && String(currentStudentSchoolDoc.emergencyNo).trim() !== 'N/A')
+                ? String(currentStudentSchoolDoc.emergencyNo).trim()
+                : ((currentStudentUser?.emergencyNo && String(currentStudentUser.emergencyNo).trim() !== 'N/A')
+                    ? String(currentStudentUser.emergencyNo).trim()
+                    : 'N/A'));
+
         const response = await fetch("https://school-backend-zlgy.onrender.com/api/generate-id-card", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 studentData: {
-                    id: currentStudentUser.id || currentStudentUser.regNo,
-                    rollNo: currentStudentUser.rollNo || currentStudentUser.roll_no || currentStudentUser.rollCode || "",
-                    regNo: currentStudentUser.regNo || currentStudentUser.reg_no || "",
+                    id: currentStudentUser.id || activeRoll || activeReg || "",
+                    rollNo: activeRoll || activeReg || "",
+                    regNo: activeReg || "",
                     name: currentStudentUser.name,
                     class: currentStudentUser.class,
                     dob: currentStudentUser.dob || "N/A",
@@ -8205,7 +8404,7 @@ window.downloadStudentIDCard = async () => {
                 secondaryColor: currentStudentSchoolDoc.secondaryColor || "#ffffff",
                 templateStyle: currentStudentSchoolDoc.idTemplateStyle || "wave",
                 schoolName: currentStudentSchoolDoc.schoolName || "SCHOOL NAME",
-                schoolEmergency: currentStudentSchoolDoc.emergencyMobile || "N/A",
+                schoolEmergency: activeEmg,
                 signatureUrl: (currentStudentSchoolDoc.sigSettings && currentStudentSchoolDoc.sigSettings.idCard === false) ? "" : (currentStudentSchoolDoc.signatureUrl || ""),
                 schoolLogoUrl: currentStudentSchoolDoc.logoUrl || currentStudentSchoolDoc.schoolLogoUrl || "",
                 schoolNameColor: currentStudentSchoolDoc.schoolNameColor || "#ffffff",

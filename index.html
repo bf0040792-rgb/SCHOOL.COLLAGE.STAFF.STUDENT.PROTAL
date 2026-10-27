@@ -231,10 +231,6 @@
                 <button class="glass-login-btn" id="doLoginBtn">
                     <span>Authenticate</span> <i class="fas fa-arrow-right"></i>
                 </button>
-                <button type="button" id="forgotPasswordBtn"
-                    style="width:100%; margin-top:12px; padding:10px; border:1px solid rgba(14,246,204,0.2); border-radius:10px; background:rgba(255,255,255,0.03); color:rgba(255,255,255,0.65); cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px;">
-                    <i class="fas fa-key"></i> Forgot Password?
-                </button>
             </div>
 
             <!-- Password Recovery Fields -->
@@ -1196,8 +1192,47 @@
 
                 <!-- TAB: PROGRAMS (COLLEGE) -->
                 <div id="tab-programs" class="tab-content">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                        <h3 style="margin:0; font-size:16px; color:#1e293b; font-weight:800;"><i class="fas fa-graduation-cap" style="color:#6366f1;"></i> Programs & Courses Management</h3>
+                        <button type="button" class="submit-btn" style="background:#10b981; padding:8px 16px; font-size:12px; border-radius:8px;" onclick="window.togglePaBulkAddSection()">
+                            <i class="fas fa-bolt"></i> ⚡ Quick Bulk Add Courses (NEP / Major)
+                        </button>
+                    </div>
+
+                    <!-- QUICK BULK ADD COURSES CARD -->
+                    <div id="pa-bulk-add-card" class="card" style="display:none; border-left: 4px solid #10b981; margin-bottom:16px; background:#f0fdf4;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h3 style="color:#059669; margin:0;"><i class="fas fa-bolt"></i> Quick Bulk Add Programs / Courses</h3>
+                            <button type="button" onclick="window.togglePaBulkAddSection(false)" style="background:none; border:none; font-size:16px; color:#64748b; cursor:pointer;"><i class="fas fa-times"></i></button>
+                        </div>
+                        <p style="font-size:12px; color:#334155; margin:6px 0 12px 0;">Paste multiple courses (one per line) or use the preset button below. Each course will be added with its auto-generated semesters/levels for your college.</p>
+                        
+                        <div class="form-row">
+                            <div class="form-group"><label>Department</label><select id="pa_bulk_prog_dept" class="input-premium"></select></div>
+                            <div class="form-group"><label>Level System</label><select id="pa_bulk_prog_leveltype" class="input-premium">
+                                <option value="semester" selected>Semester (e.g. NEP 8 Semesters)</option>
+                                <option value="year">Year</option>
+                                <option value="trimester">Trimester</option>
+                            </select></div>
+                            <div class="form-group"><label>Duration (levels/semesters)</label><input type="number" id="pa_bulk_prog_duration" class="input-premium" value="8"></div>
+                        </div>
+
+                        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                            <label style="font-weight:700; font-size:12px; color:#1e293b;">Course List (1 per line):</label>
+                            <button type="button" class="action-btn" style="background:#4f46e5; color:#fff; font-size:11px; padding:4px 10px; border-radius:6px;" onclick="window.paLoadHonoursPreset()"><i class="fas fa-magic"></i> Load 21 Standard Honours Majors Preset</button>
+                            <button type="button" class="action-btn" style="background:#94a3b8; color:#fff; font-size:11px; padding:4px 10px; border-radius:6px;" onclick="document.getElementById('pa_bulk_programs_input').value=''"><i class="fas fa-eraser"></i> Clear</button>
+                        </div>
+
+                        <textarea id="pa_bulk_programs_input" class="input-premium" style="width:100%; height:180px; font-family:'JetBrains Mono',monospace; font-size:12px; margin-top:8px; line-height:1.5; background:#ffffff;" placeholder="Paste courses here (one per line)...&#10;E.g.:&#10;BACHELORS (HONOURS) WITH ARABIC LITERATURE AS MAJOR&#10;BACHELORS (HONOURS) WITH CHEMISTRY AS MAJOR&#10;BACHELORS (HONOURS) WITH COMPUTER APPLICATIONS AS MAJOR"></textarea>
+                        
+                        <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
+                            <button type="button" id="pa_bulk_save_btn" class="submit-btn" style="background:#10b981; font-weight:800; font-size:13px; padding:10px 20px;" onclick="window.paSaveBulkPrograms()"><i class="fas fa-plus-circle"></i> Add All Courses & Generate Levels</button>
+                            <span id="pa_bulk_status" style="font-size:12px; font-weight:700; color:#059669;"></span>
+                        </div>
+                    </div>
+
                     <div class="card" style="border-left: 4px solid #6366f1;">
-                        <h3 style="color:#6366f1;"><i class="fas fa-graduation-cap"></i> Create Program / Course</h3>
+                        <h3 style="color:#6366f1;"><i class="fas fa-graduation-cap"></i> Create Single Program / Course</h3>
                         <div class="form-row">
                             <div class="form-group"><label>Department</label><select id="pa_prog_dept" class="input-premium"></select></div>
                             <div class="form-group"><label>Program Name</label><input type="text" id="pa_prog_name" class="input-premium" placeholder="BCA"></div>
@@ -4403,7 +4438,7 @@
                     </div>
     </div>
 </div>
-<script src="script.js?v=20261010_bonafide_v16"></script>
+<script src="script.js?v=20261027_v1"></script>
 <!-- STUDENT SUBJECTS MODAL (HOD) -->
 <div id="hod-subjects-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index: 10000;">
     <div class="modal-content" style="max-width: 500px; width: 100%;">
