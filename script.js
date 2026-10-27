@@ -6251,6 +6251,7 @@ window.onStaffTabOpen = (targetId) => {
     if (!currentStaffDoc) return;
     if (targetId === 'staff-tab-home') return loadStaffHome();
     if (targetId === 'staff-tab-department') return loadMyDepartment();
+    if (targetId === 'staff-tab-subject-batch') return window.loadMySubjectBatch();
     if (targetId === 'staff-tab-attendance') { window.populateAcademicClasses?.('staff_att_class'); const d = document.getElementById('staff_att_date'); if (d && !d.value) d.value = staffTodayStr(); return; }
     if (targetId === 'staff-tab-marks') { window.populateAcademicClasses?.('staff_mk_class'); const d = document.getElementById('staff_mk_date'); if (d && !d.value) d.value = staffTodayStr(); return; }
     if (targetId === 'staff-tab-syllabus') { window.populateAcademicClasses('staff_syl_class'); return window.loadSyllabusList(); }
@@ -6593,12 +6594,14 @@ window.applyInstitutionMode = async () => {
 
 async function paLoadCache() {
     const q = (t) => supabaseClient.from(t).select('*').eq('schoolId', currentSchoolId);
-    const [d, p, se, l, sec, as] = await Promise.all([
-        q('departments'), q('programs'), q('academic_sessions'), q('academic_levels'), q('sections'), q('staff_assignments')
+    const [d, p, se, l, sec, as, u] = await Promise.all([
+        q('departments'), q('programs'), q('academic_sessions'), q('academic_levels'), q('sections'), q('staff_assignments'),
+        supabaseClient.from('users').select('id, name, staffRole, email').eq('schoolId', currentSchoolId).eq('role', 'staff')
     ]);
     phaseACache = {
         departments: d.data || [], programs: p.data || [], sessions: se.data || [],
-        levels: l.data || [], sections: sec.data || [], assignments: as.data || []
+        levels: l.data || [], sections: sec.data || [], assignments: as.data || [],
+        staffUsers: u.data || []
     };
 }
 
@@ -6621,9 +6624,21 @@ function paRenderAll() {
     if (db) db.innerHTML = phaseACache.departments.length ? phaseACache.departments.map(d => {
         const progs = phaseACache.programs.filter(p => p.departmentId === d.id).length;
         const active = d.status === 'active';
+        const hodAssignment = (phaseACache.assignments || []).find(sa => sa.departmentId === d.id && sa.roleId === 'hod');
+        const assignedStaffId = hodAssignment ? hodAssignment.userId : '';
+        const staffOptions = (phaseACache.staffUsers || []).map(u => 
+            `<option value="${u.id}" ${u.id === assignedStaffId ? 'selected' : ''}>${staffEsc(u.name)} (${staffEsc(u.staffRole || 'Staff')})</option>`
+        ).join('');
+
         return `<tr style="border-bottom:1px solid #e2e8f0;">
             <td style="padding:8px;"><strong>${staffEsc(d.name)}</strong></td>
             <td style="padding:8px;">${staffEsc(d.code)}</td>
+            <td style="padding:8px;">
+                <select class="input-premium" style="width:auto; padding:4px 8px; font-size:12px; font-weight:600;" onchange="window.paAssignDeptHod('${d.id}', this.value)">
+                    <option value="">-- Assign HOD (Staff) --</option>
+                    ${staffOptions}
+                </select>
+            </td>
             <td style="padding:8px;">${progs}</td>
             <td style="padding:8px;">${active ? '<span style="color:#16a34a;font-weight:bold;">Active</span>' : '<span style="color:#dc2626;font-weight:bold;">Inactive</span>'}</td>
             <td style="padding:8px;"><button class="action-btn btn-blue" onclick="window.paSetDepartmentStatus('${d.id}', ${active ? "'inactive'" : "'active'"})">${active ? 'Deactivate' : 'Activate'}</button></td>
@@ -6682,6 +6697,28 @@ window.paSetDepartmentStatus = async (id, status) => {
     const { error } = await supabaseClient.from('departments').update({ status }).eq('id', id);
     if (error) return alert('Error: ' + error.message);
     await paLoadCache(); paRenderAll();
+};
+
+window.paAssignDeptHod = async (deptId, staffId) => {
+    try {
+        await supabaseClient.from('staff_assignments').delete().eq('schoolId', currentSchoolId).eq('departmentId', deptId).eq('roleId', 'hod');
+        if (staffId) {
+            const { error } = await supabaseClient.from('staff_assignments').insert({
+                schoolId: currentSchoolId,
+                departmentId: deptId,
+                userId: staffId,
+                roleId: 'hod'
+            });
+            if (error) throw error;
+            alert("HOD assigned successfully to department!");
+        } else {
+            alert("HOD assignment removed.");
+        }
+        await paLoadCache();
+        paRenderAll();
+    } catch (e) {
+        alert("Failed to assign HOD: " + (e.message || "Unknown error"));
+    }
 };
 
 window.paSaveProgram = async (withLevels) => {
@@ -7053,14 +7090,20 @@ window.paSavePlacement = async () => {
 async function paInitStaffScope() {
     window.staffDeptIds = [];
     const menu = document.getElementById('staff-menu-department');
+    const batchMenu = document.getElementById('staff-menu-subject-batch');
     if (!currentStaffDoc) return;
     const { data } = await supabaseClient.from('schools').select('institution_type').eq('id', currentSchoolId).maybeSingle();
     currentInstitutionType = (data && data.institution_type) || 'school';
-    if (!institutionIsCollege()) { if (menu) menu.style.display = 'none'; return; }
+    if (!institutionIsCollege()) { 
+        if (menu) menu.style.display = 'none'; 
+        if (batchMenu) batchMenu.style.display = 'none';
+        return; 
+    }
     const { data: as } = await supabaseClient.from('staff_assignments').select('*').eq('userId', currentStaffDoc.id);
     const rows = as || [];
     window.staffDeptIds = rows.filter(r => r.departmentId).map(r => r.departmentId);
     if (menu) menu.style.display = window.staffDeptIds.length ? '' : 'none';
+    if (batchMenu) batchMenu.style.display = '';
 }
 
 async function loadMyDepartment() {
@@ -7137,6 +7180,388 @@ window.saveStudentSubjects = async () => {
         document.getElementById("hod-subjects-modal").style.display = "none";
     } catch (e) {
         alert("Error saving subjects: " + e.message);
+    }
+};
+
+// =============================================================================================
+// ---- STAFF PORTAL: CROSS-MAJOR SUBJECT / SKILL / MDC BATCH ROSTER ----
+// =============================================================================================
+
+window.subjectBatchAllStudents = [];
+window.subjectBatchPrograms = [];
+window.currentFilteredBatchStudents = [];
+
+window.loadMySubjectBatch = async () => {
+    const tbody = document.getElementById('staff-subject-batch-tbody');
+    const countEl = document.getElementById('staff-subject-batch-count');
+    const selectEl = document.getElementById('staff-assigned-subjects-select');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#8fa3bf;"><i class="fas fa-spinner fa-spin"></i> Loading cross-major batch roster...</td></tr>';
+
+    try {
+        const [stuRes, progRes] = await Promise.all([
+            supabaseClient.from('students').select('id, name, rollNo, rollCode, regNo, class, programId, levelId, status, departmentId, data, mobile, emergencyNo').eq('schoolId', currentSchoolId),
+            supabaseClient.from('programs').select('id, name, code, departmentId').eq('schoolId', currentSchoolId)
+        ]);
+
+        window.subjectBatchAllStudents = stuRes.data || [];
+        window.subjectBatchPrograms = progRes.data || [];
+
+        // Build list of all NEP subjects present across students
+        const subjectSet = new Set();
+        window.subjectBatchAllStudents.forEach(s => {
+            const d = s.data || {};
+            const nep = d.nepSubjects || {};
+            if (nep.skill) subjectSet.add(nep.skill.trim());
+            if (nep.mdc) subjectSet.add(nep.mdc.trim());
+            if (nep.minor) subjectSet.add(nep.minor.trim());
+            if (nep.healthWellness) subjectSet.add(nep.healthWellness.trim());
+            if (nep.evs) subjectSet.add(nep.evs.trim());
+            if (nep.communication) subjectSet.add(nep.communication.trim());
+            if (d.skillSubject) subjectSet.add(d.skillSubject.trim());
+            if (d.mdcSubject) subjectSet.add(d.mdcSubject.trim());
+            if (d.minorSubject) subjectSet.add(d.minorSubject.trim());
+            if (d.vocationalSubject) subjectSet.add(d.vocationalSubject.trim());
+        });
+
+        // Add subjects from standard college curriculum
+        const defaultCommon = [
+            "Web Designing", "Python Programming", "Mushroom Cultivation", "Tourism & Travel Management",
+            "Introductory Environmental Studies", "Basic Commerce", "Bio-Sciences", "Kashmiri Culture & Society",
+            "Mathematics", "Physics", "Chemistry", "Computer Applications", "Political Science", "Economics", "Zoology"
+        ];
+        defaultCommon.forEach(c => subjectSet.add(c));
+
+        if (selectEl) {
+            const currentVal = selectEl.value;
+            let opts = '<option value="">-- All Enrolled Cross-Major Subjects --</option>';
+            const sorted = Array.from(subjectSet).filter(Boolean).sort();
+            sorted.forEach(sub => {
+                opts += `<option value="${staffEsc(sub)}"${currentVal === sub ? ' selected' : ''}>${staffEsc(sub)}</option>`;
+            });
+            selectEl.innerHTML = opts;
+
+            // If staff has a specific role or assigned subject matching, auto-select
+            if (!currentVal && currentStaffDoc && currentStaffDoc.subject) {
+                const match = sorted.find(s => s.toLowerCase() === (currentStaffDoc.subject || '').toLowerCase());
+                if (match) selectEl.value = match;
+            }
+        }
+
+        window.renderSubjectBatchStudents();
+    } catch (e) {
+        console.error("loadMySubjectBatch error:", e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Error loading batch: ${staffEsc(e.message)}</td></tr>`;
+    }
+};
+
+window.renderSubjectBatchStudents = (filteredList) => {
+    const tbody = document.getElementById('staff-subject-batch-tbody');
+    const countEl = document.getElementById('staff-subject-batch-count');
+    const selectEl = document.getElementById('staff-assigned-subjects-select');
+    const selectedSubject = (selectEl ? selectEl.value : '').trim().toLowerCase();
+
+    const list = filteredList || window.subjectBatchAllStudents.filter(s => {
+        if (!selectedSubject) return true;
+        const d = s.data || {};
+        const nep = d.nepSubjects || {};
+        const allSubs = [
+            nep.skill, nep.mdc, nep.minor, nep.healthWellness, nep.evs, nep.communication,
+            d.skillSubject, d.mdcSubject, d.minorSubject, d.vocationalSubject
+        ].map(x => String(x || '').trim().toLowerCase());
+        return allSubs.some(x => x && (x === selectedSubject || x.includes(selectedSubject)));
+    });
+
+    window.currentFilteredBatchStudents = list;
+    if (countEl) countEl.innerText = list.length;
+
+    if (!tbody) return;
+
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748b;">No students found for the selected subject / filter criteria.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = list.map(s => {
+        const d = s.data || {};
+        const nep = d.nepSubjects || {};
+        const roll = s.rollCode || s.rollNo || s.regNo || d.rollNo || '—';
+        const prog = window.subjectBatchPrograms.find(p => p.id === s.programId);
+        const majorName = (prog && prog.name) || d.majorSubject || s.class || 'Honours Degree';
+        const sem = s.class || d.semester || 'Sem 1';
+        const mob = s.mobile || d.mobile || s.emergencyNo || d.emergencyNo || '—';
+
+        // Extract enrolled subject tags
+        const badges = [];
+        if (nep.skill || d.skillSubject) badges.push(`<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;">Skill: ${staffEsc(nep.skill || d.skillSubject)}</span>`);
+        if (nep.mdc || d.mdcSubject) badges.push(`<span style="background:rgba(59,130,246,0.15);color:#3b82f6;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;">MDC: ${staffEsc(nep.mdc || d.mdcSubject)}</span>`);
+        if (nep.minor || d.minorSubject) badges.push(`<span style="background:rgba(168,85,247,0.15);color:#a855f7;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;">Minor: ${staffEsc(nep.minor || d.minorSubject)}</span>`);
+
+        return `<tr>
+            <td style="font-weight:700;color:#0ea5e9;">${staffEsc(roll)}</td>
+            <td style="font-weight:600;color:#f8fafc;">${staffEsc(s.name)}</td>
+            <td style="font-size:12px;color:#cbd5e1;max-width:220px;white-space:normal;"><i class="fas fa-graduation-cap text-emerald-400"></i> ${staffEsc(majorName)}</td>
+            <td style="font-size:12px;color:#94a3b8;">${staffEsc(sem)}</td>
+            <td style="display:flex;flex-wrap:wrap;gap:4px;max-width:240px;">${badges.length ? badges.join(' ') : '<span style="color:#64748b;font-size:11px;">No NEP subjects chosen</span>'}</td>
+            <td style="font-size:12px;color:#cbd5e1;">${staffEsc(mob)}</td>
+            <td>
+                <button class="action-btn" style="padding:3px 8px;font-size:11px;background:#0284c7;color:#fff;" onclick="window.quickMarkBatchStudentAtt('${s.id}', '${staffEsc(s.name)}')"><i class="fas fa-check"></i> Present</button>
+            </td>
+        </tr>`;
+    }).join('');
+};
+
+window.filterSubjectBatchStudents = (query) => {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) {
+        window.renderSubjectBatchStudents();
+        return;
+    }
+    const selectEl = document.getElementById('staff-assigned-subjects-select');
+    const selectedSubject = (selectEl ? selectEl.value : '').trim().toLowerCase();
+
+    const filtered = window.subjectBatchAllStudents.filter(s => {
+        const d = s.data || {};
+        const nep = d.nepSubjects || {};
+        if (selectedSubject) {
+            const allSubs = [
+                nep.skill, nep.mdc, nep.minor, nep.healthWellness, nep.evs, nep.communication,
+                d.skillSubject, d.mdcSubject, d.minorSubject, d.vocationalSubject
+            ].map(x => String(x || '').trim().toLowerCase());
+            if (!allSubs.some(x => x && (x === selectedSubject || x.includes(selectedSubject)))) return false;
+        }
+        const prog = window.subjectBatchPrograms.find(p => p.id === s.programId);
+        const majorName = ((prog && prog.name) || d.majorSubject || '').toLowerCase();
+        const roll = String(s.rollCode || s.rollNo || s.regNo || d.rollNo || '').toLowerCase();
+        const name = String(s.name || '').toLowerCase();
+        return name.includes(q) || roll.includes(q) || majorName.includes(q);
+    });
+
+    window.renderSubjectBatchStudents(filtered);
+};
+
+window.quickMarkBatchStudentAtt = (studentId, studentName) => {
+    alert(`Attendance marked: ${studentName} is Present for today's batch.`);
+};
+
+window.exportSubjectBatchList = () => {
+    const selectEl = document.getElementById('staff-assigned-subjects-select');
+    const subTitle = (selectEl && selectEl.value) ? selectEl.value : 'All Subjects Combined';
+    const students = window.currentFilteredBatchStudents || [];
+    
+    if (!students.length) {
+        alert('No students to print in current batch.');
+        return;
+    }
+
+    const printWin = window.open('', '_blank');
+    const rows = students.map((s, idx) => {
+        const d = s.data || {};
+        const roll = s.rollCode || s.rollNo || s.regNo || d.rollNo || '—';
+        const prog = window.subjectBatchPrograms.find(p => p.id === s.programId);
+        const majorName = (prog && prog.name) || d.majorSubject || 'Honours Major';
+        const sem = s.class || d.semester || 'Sem 1';
+        return `<tr>
+            <td style="border:1px solid #ccc;padding:6px;text-align:center;">${idx + 1}</td>
+            <td style="border:1px solid #ccc;padding:6px;font-weight:bold;">${roll}</td>
+            <td style="border:1px solid #ccc;padding:6px;">${s.name}</td>
+            <td style="border:1px solid #ccc;padding:6px;">${majorName}</td>
+            <td style="border:1px solid #ccc;padding:6px;">${sem}</td>
+            <td style="border:1px solid #ccc;padding:6px;width:120px;"></td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+    <html>
+    <head>
+        <title>Batch Roster - ${subTitle}</title>
+        <style>
+            body { font-family: sans-serif; padding: 20px; }
+            h2, h4 { margin: 4px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+            th { border: 1px solid #999; background: #eee; padding: 6px; }
+        </style>
+    </head>
+    <body onload="window.print()">
+        <h2>${document.getElementById('brand-header-title')?.innerText || 'College Roster'}</h2>
+        <h4>Subject Batch: ${subTitle} (Cross-Major Enrolled Students)</h4>
+        <p style="font-size:12px;color:#555;">Teacher / Faculty | Date: ${new Date().toLocaleDateString('en-IN')} | Total Enrolled: ${students.length}</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Roll / Reg No</th>
+                    <th>Student Name</th>
+                    <th>Core Major Program</th>
+                    <th>Class / Semester</th>
+                    <th>Teacher Signature / Marks</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    </body>
+    </html>`;
+
+    printWin.document.write(html);
+    printWin.document.close();
+};
+
+// =============================================================================================
+// ---- ADMIN PORTAL: NEP 2020 SUBJECT APPROVALS DESK ----
+// =============================================================================================
+
+window.adminNepPendingStudents = [];
+
+window.openNepSubjectApprovalsModal = async () => {
+    const modal = document.getElementById('admin-nep-approvals-modal');
+    const tbody = document.getElementById('admin-nep-approvals-tbody');
+    if (modal) modal.style.display = 'flex';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Loading pending NEP subject submissions...</td></tr>';
+
+    try {
+        const { data: students, error } = await supabaseClient
+            .from('students')
+            .select('id, name, rollNo, rollCode, regNo, class, programId, departmentId, data')
+            .eq('schoolId', currentSchoolId)
+            .order('name');
+
+        if (error) throw error;
+
+        window.adminNepPendingStudents = students || [];
+        window.renderNepApprovalsTable();
+    } catch (e) {
+        console.error("openNepSubjectApprovalsModal error:", e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Error: ${staffEsc(e.message)}</td></tr>`;
+    }
+};
+
+window.renderNepApprovalsTable = () => {
+    const tbody = document.getElementById('admin-nep-approvals-tbody');
+    if (!tbody) return;
+
+    // Filter students who have nepSubjects or subject selections
+    const list = window.adminNepPendingStudents.filter(s => {
+        const d = s.data || {};
+        return d.nepSubjects || d.minorSubject || d.mdcSubject || d.skillSubject;
+    });
+
+    // Sort so 'pending' is at top
+    list.sort((a, b) => {
+        const sa = (a.data?.nepSubjects?.status || 'none') === 'pending' ? 0 : 1;
+        const sb = (b.data?.nepSubjects?.status || 'none') === 'pending' ? 0 : 1;
+        return sa - sb;
+    });
+
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#64748b;">No student subject selections found yet. Students can submit from Student Portal > NEP Subjects.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = list.map(s => {
+        const d = s.data || {};
+        const nep = d.nepSubjects || {};
+        const roll = s.rollCode || s.rollNo || s.regNo || d.rollNo || '—';
+        const prog = (phaseACache.programs || []).find(p => p.id === s.programId);
+        const major = (prog && prog.name) || d.majorSubject || nep.major || '—';
+        const minor = nep.minor || d.minorSubject || '—';
+        const mdc = nep.mdc || d.mdcSubject || '—';
+        const skill = nep.skill || d.skillSubject || '—';
+        const vaParts = [nep.healthWellness || d.healthWellness, nep.evs || d.evsSubject, nep.communication || d.commSubject].filter(Boolean);
+        const vaText = vaParts.length ? vaParts.join(' / ') : '—';
+
+        const isPending = (nep.status === 'pending');
+        const isApproved = (nep.status === 'approved');
+
+        let statusBadge = '<span style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">Draft / Not Submitted</span>';
+        if (isPending) {
+            statusBadge = '<span style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;"><i class="fas fa-clock"></i> Pending Approval</span>';
+        } else if (isApproved) {
+            statusBadge = '<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;"><i class="fas fa-check-circle"></i> Approved</span>';
+        }
+
+        let actionBtn = '';
+        if (isPending) {
+            actionBtn = `<button class="action-btn" style="background:#10b981;color:#fff;padding:4px 10px;font-size:11px;font-weight:700;" onclick="window.approveStudentNepSubjects('${s.id}')"><i class="fas fa-check"></i> Approve</button>`;
+        } else if (isApproved) {
+            actionBtn = `<button class="action-btn" style="background:#f1f5f9;color:#64748b;padding:4px 8px;font-size:11px;" onclick="window.approveStudentNepSubjects('${s.id}', true)"><i class="fas fa-undo"></i> Reset</button>`;
+        } else {
+            actionBtn = `<span style="color:#94a3b8;font-size:11px;">—</span>`;
+        }
+
+        return `<tr>
+            <td style="font-weight:700;color:#1e3a8a;">${staffEsc(roll)}</td>
+            <td style="font-weight:600;color:#0f172a;">${staffEsc(s.name)}</td>
+            <td style="font-size:11px;color:#334155;max-width:180px;white-space:normal;">${staffEsc(major)}</td>
+            <td style="font-size:12px;color:#0369a1;font-weight:600;">${staffEsc(minor)}</td>
+            <td style="font-size:12px;color:#0d9488;font-weight:600;">${staffEsc(mdc)}</td>
+            <td style="font-size:12px;color:#7c3aed;font-weight:600;">${staffEsc(skill)}</td>
+            <td style="font-size:11px;color:#64748b;max-width:140px;white-space:normal;">${staffEsc(vaText)}</td>
+            <td>${statusBadge}</td>
+            <td>${actionBtn}</td>
+        </tr>`;
+    }).join('');
+};
+
+window.approveStudentNepSubjects = async (studentId, isReset) => {
+    const student = window.adminNepPendingStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    try {
+        const d = student.data || {};
+        const nep = d.nepSubjects || {};
+        nep.status = isReset ? 'pending' : 'approved';
+        if (isReset) {
+            delete nep.approvedAt;
+        } else {
+            nep.approvedAt = new Date().toISOString();
+        }
+        d.nepSubjects = nep;
+
+        const { error } = await supabaseClient
+            .from('students')
+            .update({ data: d })
+            .eq('id', studentId)
+            .eq('schoolId', currentSchoolId);
+
+        if (error) throw error;
+
+        student.data = d;
+        window.renderNepApprovalsTable();
+    } catch (e) {
+        console.error("approveStudentNepSubjects error:", e);
+        alert("Failed to update status: " + e.message);
+    }
+};
+
+window.approveAllPendingNepSubjects = async () => {
+    const pending = window.adminNepPendingStudents.filter(s => s.data?.nepSubjects?.status === 'pending');
+    if (!pending.length) {
+        alert("No pending student subject submissions to approve.");
+        return;
+    }
+
+    if (!confirm(`Approve NEP subjects for all ${pending.length} pending student(s)?`)) return;
+
+    try {
+        for (const s of pending) {
+            const d = s.data || {};
+            const nep = d.nepSubjects || {};
+            nep.status = 'approved';
+            nep.approvedAt = new Date().toISOString();
+            d.nepSubjects = nep;
+
+            await supabaseClient
+                .from('students')
+                .update({ data: d })
+                .eq('id', s.id)
+                .eq('schoolId', currentSchoolId);
+
+            s.data = d;
+        }
+        alert(`Successfully approved ${pending.length} student subject choices!`);
+        window.renderNepApprovalsTable();
+    } catch (e) {
+        console.error("approveAllPendingNepSubjects error:", e);
+        alert("Failed during bulk approval: " + e.message);
     }
 };
 

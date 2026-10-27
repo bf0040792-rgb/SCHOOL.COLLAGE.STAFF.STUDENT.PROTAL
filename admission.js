@@ -171,8 +171,21 @@ async function loadCollegeStructure() {
         semesters.forEach(s => options += `<option value="${s}">${s}</option>`);
         classSelect.innerHTML = options;
 
-        const { data: deptsData } = await supabaseClient.from("vw_public_departments").select("id, name, code").eq("schoolId", currentSchoolId);
-        let depts = deptsData || [];
+        // Fetch active Programs / Courses for this College
+        let progs = [];
+        try {
+            const { data: progsData } = await supabaseClient.from("vw_public_programs").select("id, name, code, departmentId").eq("schoolId", currentSchoolId);
+            if (progsData && progsData.length > 0) progs = progsData;
+        } catch (pe) {
+            console.warn("vw_public_programs lookup fallback:", pe);
+        }
+
+        // Fallback to departments if no programs found
+        let depts = [];
+        if (progs.length === 0) {
+            const { data: deptsData } = await supabaseClient.from("vw_public_departments").select("id, name, code").eq("schoolId", currentSchoolId);
+            depts = deptsData || [];
+        }
 
         const oldGroup = document.getElementById("department-selection-group");
         if (oldGroup) oldGroup.remove();
@@ -180,17 +193,23 @@ async function loadCollegeStructure() {
         if (oldSubjectGroup) oldSubjectGroup.remove();
 
         let classGroup = classSelect.closest(".form-group");
-        let deptHtml = `<div class="form-group" id="department-selection-group" style="margin-top: 15px;">
-            <label for="student-department">Major Subject (Department) *</label>
-            <select id="student-department" required style="width:100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #f9f9f9;">
-                <option value="">-- Select Major --</option>
+        let progHtml = `<div class="form-group" id="department-selection-group" style="margin-top: 15px;">
+            <label for="student-program" style="font-weight:700; color:#1e293b;"><i class="fas fa-graduation-cap" style="color:#6366f1;"></i> Program / Course (Major Subject) *</label>
+            <select id="student-program" required style="width:100%; padding: 11px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 13.5px; background: #ffffff; color:#1e293b; font-weight:600; outline:none;">
+                <option value="">-- Select Major Program / Course --</option>
         `;
-        depts.forEach(d => {
-            deptHtml += `<option value="${d.id}">${d.name} (${d.code})</option>`;
-        });
-        deptHtml += `</select></div>`;
+        if (progs.length > 0) {
+            progs.forEach(p => {
+                progHtml += `<option value="${p.id}" data-dept="${p.departmentId || ''}" data-name="${p.name}">${p.name} (${p.code})</option>`;
+            });
+        } else {
+            depts.forEach(d => {
+                progHtml += `<option value="${d.id}" data-dept="${d.id}" data-name="${d.name}">${d.name} (${d.code})</option>`;
+            });
+        }
+        progHtml += `</select></div>`;
         
-        classGroup.insertAdjacentHTML("afterend", deptHtml);
+        classGroup.insertAdjacentHTML("afterend", progHtml);
     } catch (e) {
         console.error("Failed to load college structure for admission:", e);
     }
@@ -210,9 +229,21 @@ form.addEventListener("submit", async (e) => {
     collegeChoice = null;
     let selectedSubjects = [];
     let departmentId = null;
+    let programId = null;
+    let majorProgName = "";
     if (currentInstitutionType === "college") {
-        const deptSelect = document.getElementById("student-department");
-        if (deptSelect) departmentId = deptSelect.value;
+        const progSelect = document.getElementById("student-program") || document.getElementById("student-department");
+        if (progSelect && progSelect.value) {
+            programId = progSelect.value;
+            const opt = progSelect.options[progSelect.selectedIndex];
+            departmentId = opt?.getAttribute('data-dept') || progSelect.value;
+            majorProgName = opt?.getAttribute('data-name') || opt?.text || "";
+            collegeChoice = {
+                programId: programId,
+                departmentId: departmentId,
+                majorName: majorProgName
+            };
+        }
     }
     const parentage = document.getElementById("parentage").value.trim();
     const motherName = document.getElementById("mother-name").value.trim();
@@ -225,8 +256,8 @@ form.addEventListener("submit", async (e) => {
         return;
     }
 
-    if (currentInstitutionType === "college" && !departmentId) {
-        alert("Please select your Major Subject (Department).");
+    if (currentInstitutionType === "college" && !programId && !departmentId) {
+        alert("Please select your Major Program / Course.");
         return;
     }
 
@@ -263,9 +294,16 @@ form.addEventListener("submit", async (e) => {
         if (departmentId) {
             payload.departmentId = departmentId;
         }
+        if (programId) {
+            payload.programId = programId;
+        }
+        if (majorProgName) {
+            payload.majorSubject = majorProgName;
+        }
         if (collegeChoice) {
             payload.departmentId = collegeChoice.departmentId || departmentId;
-            payload.programId = collegeChoice.programId;
+            payload.programId = collegeChoice.programId || programId;
+            payload.majorSubject = collegeChoice.majorName || majorProgName;
         }
         const { data: result, error: rpcError } = await supabaseClient.rpc(rpcName, {
             p_school_id: currentSchoolId,

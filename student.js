@@ -74,6 +74,7 @@ const studentFeatures = [
     { id: 'datesheet', title: 'DateSheet', icon: 'fa-calendar-days' },
     { id: 'attendance', title: 'Attendance', icon: 'fa-calendar-check' },
     { id: 'sms', title: 'SMS', icon: 'fa-message' },
+    { id: 'subjects', title: 'NEP Subjects', icon: 'fa-book-bookmark' },
     { id: 'calendar', title: 'Calendar Planning', icon: 'fa-calendar' },
     { id: 'idcard', title: 'ID Card', icon: 'fa-id-card' },
     { id: 'syllabus', title: 'Syllabus', icon: 'fa-book' },
@@ -229,6 +230,7 @@ window.handleStudentFeatureClick = (featureId) => {
     if (featureId === 'complaint') return window.openStudentComplaintSection();
     if (featureId === 'batchmate') return window.loadStudentBatchmates();
     if (featureId === 'sms') return window.loadStudentSms();
+    if (featureId === 'subjects') return window.loadStudentSubjectsView();
     
     // Dispatch to implementation functions
     if (featureId === 'homework') return window.loadStudentHomework();
@@ -2143,6 +2145,156 @@ window.sendStudentDirectMessage = async (event) => {
 
 window.startSmsWithBatchmate = async (batchmateId) => {
     await window.loadStudentSms(batchmateId);
+};
+
+// ================= NEP 2020 SUBJECT SELECTION DESK =================
+window.loadStudentSubjectsView = async () => {
+    window.openStudentView('student-subjects-section');
+    if (!currentStudentUser) return;
+
+    try {
+        if (currentStudentUser.id && currentSchoolId) {
+            const { data: fresh } = await supabaseClient.from('students').select('*').eq('id', currentStudentUser.id).maybeSingle();
+            if (fresh) currentStudentUser = { ...currentStudentUser, ...fresh, data: { ...(currentStudentUser.data || {}), ...(fresh.data || {}) } };
+        }
+    } catch (e) {
+        console.warn("Student fresh fetch error:", e);
+    }
+
+    const stData = currentStudentUser.data || {};
+    const nep = stData.nepSubjects || {};
+
+    const majorEl = $('stu_nep_major');
+    if (majorEl) {
+        majorEl.value = currentStudentUser.majorSubject || stData.majorSubject || currentStudentUser.class || "Major Degree Program";
+    }
+
+    $('stu_nep_minor') && ($('stu_nep_minor').value = nep.minor || stData.minorSubject || "");
+    $('stu_nep_mdc') && ($('stu_nep_mdc').value = nep.mdc || stData.mdcSubject || "");
+    $('stu_nep_skill') && ($('stu_nep_skill').value = nep.skill || stData.skillSubject || "");
+    $('stu_nep_health') && ($('stu_nep_health').value = nep.healthWellness || stData.healthWellness || "");
+    $('stu_nep_evs') && ($('stu_nep_evs').value = nep.evs || stData.evsSubject || "Environmental Studies (EVS)");
+    $('stu_nep_comm') && ($('stu_nep_comm').value = nep.communication || stData.commSubject || "");
+
+    const badge = $('stu-nep-status-badge');
+    const lockedNotice = $('stu-nep-locked-notice');
+    const pendingNotice = $('stu-nep-pending-notice');
+    const submitBtn = $('stu_nep_submit_btn');
+
+    const status = nep.status || (stData.minorSubject && stData.skillSubject ? 'approved' : 'not_submitted');
+
+    if (status === 'approved') {
+        if (badge) {
+            badge.innerText = "🟢 Approved & Enrolled";
+            badge.style.background = "#dcfce7";
+            badge.style.color = "#15803d";
+        }
+        if (lockedNotice) lockedNotice.style.display = "block";
+        if (pendingNotice) pendingNotice.style.display = "none";
+        if (submitBtn) submitBtn.style.display = "none";
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = $(id);
+            if (el) { el.readOnly = true; el.classList.add('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    } else if (status === 'pending') {
+        if (badge) {
+            badge.innerText = "🟡 Pending College Approval";
+            badge.style.background = "#fef3c7";
+            badge.style.color = "#b45309";
+        }
+        if (lockedNotice) lockedNotice.style.display = "none";
+        if (pendingNotice) pendingNotice.style.display = "block";
+        if (submitBtn) {
+            submitBtn.style.display = "inline-flex";
+            submitBtn.innerHTML = "<i class='fas fa-sync'></i> Update Submitted Choices";
+        }
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = $(id);
+            if (el) { el.readOnly = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    } else {
+        if (badge) {
+            badge.innerText = "⚪ Not Submitted";
+            badge.style.background = "#f1f5f9";
+            badge.style.color = "#64748b";
+        }
+        if (lockedNotice) lockedNotice.style.display = "none";
+        if (pendingNotice) pendingNotice.style.display = "none";
+        if (submitBtn) {
+            submitBtn.style.display = "inline-flex";
+            submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Submit Subject Choices for Approval";
+        }
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = $(id);
+            if (el) { el.readOnly = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    }
+};
+
+window.submitStudentNepSubjects = async (event) => {
+    if (event) event.preventDefault();
+    if (!currentStudentUser?.id) return alert("Please log in again.");
+
+    const major = $('stu_nep_major')?.value.trim() || currentStudentUser.majorSubject || "";
+    const minor = $('stu_nep_minor')?.value.trim();
+    const mdc = $('stu_nep_mdc')?.value.trim();
+    const skill = $('stu_nep_skill')?.value.trim();
+    const health = $('stu_nep_health')?.value.trim();
+    const evs = $('stu_nep_evs')?.value.trim() || "Environmental Studies (EVS)";
+    const comm = $('stu_nep_comm')?.value.trim();
+
+    if (!minor || !mdc || !skill || !health || !comm) {
+        return alert("Please fill in all subjects (Minor, MDC, Skill, Health & Wellness, and Communication).");
+    }
+
+    const btn = $('stu_nep_submit_btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Submitting to College Admin...";
+    }
+
+    try {
+        const existingData = currentStudentUser.data || {};
+        const nepObj = {
+            major: major,
+            minor: minor,
+            mdc: mdc,
+            skill: skill,
+            healthWellness: health,
+            evs: evs,
+            communication: comm,
+            status: 'pending',
+            submittedAt: new Date().toISOString()
+        };
+
+        const updatedData = {
+            ...existingData,
+            minorSubject: minor,
+            mdcSubject: mdc,
+            skillSubject: skill,
+            healthWellness: health,
+            evsSubject: evs,
+            commSubject: comm,
+            nepSubjects: nepObj
+        };
+
+        const { error } = await supabaseClient
+            .from('students')
+            .update({ data: updatedData })
+            .eq('id', currentStudentUser.id)
+            .eq('schoolId', currentSchoolId);
+
+        if (error) throw error;
+
+        currentStudentUser.data = updatedData;
+        alert("Subjects submitted successfully! Your choices have been sent to College Administration for approval.");
+        await window.loadStudentSubjectsView();
+    } catch (err) {
+        console.error("Failed to submit NEP subjects:", err);
+        alert("Failed to submit subjects: " + (err.message || "Unknown error"));
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
