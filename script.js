@@ -322,6 +322,7 @@ window.switchTab = (targetId) => {
     if (targetId === 'tab-minor-subjects') {
         window.loadCollegeSubjects?.();
         window.loadNepApprovalsDesk?.();
+        window.checkStudentNepDeskStatus?.();
     }
     if (targetId === 'tab-departments' || targetId === 'tab-programs') {
         if (typeof paLoadCache === 'function') paLoadCache().then(() => paRenderAll());
@@ -7495,10 +7496,17 @@ window.loadCollegeSubjects = async () => {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Loading subjects & seats...</td></tr>';
     }
 
+    const activeSchoolId = currentSchoolId || 
+                           sessionStorage.getItem("currentSchoolId") || 
+                           localStorage.getItem("currentSchoolId") || 
+                           currentUserData?.schoolId || 
+                           "INS-F766E8CB4A67";
+    if (!currentSchoolId && activeSchoolId) currentSchoolId = activeSchoolId;
+
     try {
         const [subRes, stuRes] = await Promise.all([
-            supabaseClient.from('college_subjects').select('*').eq('schoolId', currentSchoolId).order('name'),
-            supabaseClient.from('students').select('id, data').eq('schoolId', currentSchoolId)
+            supabaseClient.from('college_subjects').select('*').eq('schoolId', activeSchoolId).order('name'),
+            supabaseClient.from('students').select('id, data').eq('schoolId', activeSchoolId)
         ]);
 
         if (subRes.error) throw subRes.error;
@@ -7602,9 +7610,25 @@ window.saveCollegeSubject = async () => {
         return;
     }
 
+    const activeSchoolId = currentSchoolId || 
+                           sessionStorage.getItem("currentSchoolId") || 
+                           localStorage.getItem("currentSchoolId") || 
+                           currentUserData?.schoolId || 
+                           "INS-F766E8CB4A67";
+    if (!currentSchoolId && activeSchoolId) currentSchoolId = activeSchoolId;
+
+    const btn = document.querySelector('#tab-minor-subjects button[onclick="window.saveCollegeSubject()"]');
+    const originalBtnHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Subject...';
+    }
+
     try {
-        const { error } = await supabaseClient.from('college_subjects').insert([{
-            schoolId: currentSchoolId,
+        const subId = 'sub_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
+        const { data, error } = await supabaseClient.from('college_subjects').insert([{
+            id: subId,
+            schoolId: activeSchoolId,
             name,
             code: code || null,
             category,
@@ -7612,7 +7636,7 @@ window.saveCollegeSubject = async () => {
             seats,
             status: 'active',
             metadata: {}
-        }]);
+        }]).select();
 
         if (error) throw error;
 
@@ -7626,7 +7650,12 @@ window.saveCollegeSubject = async () => {
         alert(`Subject "${name}" (${category} - ${semester}) created successfully with ${seats} seats capacity!`);
     } catch (e) {
         console.error("saveCollegeSubject error:", e);
-        alert("Failed to save subject: " + e.message);
+        alert("Failed to save subject: " + (e.message || JSON.stringify(e)));
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHtml || '<i class="fas fa-save"></i> Save Subject';
+        }
     }
 };
 
@@ -7634,18 +7663,126 @@ window.saveCollegeSubject = async () => {
 window.deleteCollegeSubject = async (id, name) => {
     if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
 
+    const activeSchoolId = currentSchoolId || 
+                           sessionStorage.getItem("currentSchoolId") || 
+                           localStorage.getItem("currentSchoolId") || 
+                           currentUserData?.schoolId || 
+                           "INS-F766E8CB4A67";
     try {
         const { error } = await supabaseClient
             .from('college_subjects')
             .delete()
             .eq('id', id)
-            .eq('schoolId', currentSchoolId);
+            .eq('schoolId', activeSchoolId);
 
         if (error) throw error;
         await window.loadCollegeSubjects();
     } catch (e) {
         console.error("deleteCollegeSubject error:", e);
         alert("Failed to delete subject: " + e.message);
+    }
+};
+
+// 4b. NEP Student Selection Portal Desk Toggle & Status
+window.isStudentNepSelectionEnabled = false;
+window.checkStudentNepDeskStatus = async () => {
+    const activeSchoolId = currentSchoolId || 
+                           sessionStorage.getItem("currentSchoolId") || 
+                           localStorage.getItem("currentSchoolId") || 
+                           currentUserData?.schoolId || 
+                           "INS-F766E8CB4A67";
+    try {
+        const [schRes, fcRes] = await Promise.all([
+            supabaseClient.from('schools').select('academic_config, data').eq('id', activeSchoolId).maybeSingle(),
+            supabaseClient.from('feature_controls').select('featureSettings').eq('schoolId', activeSchoolId).maybeSingle()
+        ]);
+        const schConfig = schRes.data?.academic_config || schRes.data?.data || {};
+        const fcSettings = fcRes.data?.featureSettings?.student || {};
+
+        const isEnabled = (schConfig.nepStudentSelectionEnabled === true) || (fcSettings.subjects === true) || (fcSettings.nepSelection === true);
+        window.isStudentNepSelectionEnabled = isEnabled;
+        window.renderStudentNepDeskToggleUI(isEnabled);
+    } catch (e) {
+        console.warn("checkStudentNepDeskStatus error:", e);
+        window.renderStudentNepDeskToggleUI(window.isStudentNepSelectionEnabled || false);
+    }
+};
+
+window.renderStudentNepDeskToggleUI = (isEnabled) => {
+    const badge = document.getElementById('admin-nep-portal-status-badge');
+    const btn = document.getElementById('admin-nep-toggle-btn');
+    if (badge) {
+        badge.innerHTML = isEnabled 
+            ? '🟢 ACTIVE / OPEN' 
+            : '🔴 CLOSED / DISABLED';
+        badge.style.background = isEnabled ? '#dcfce7' : '#fee2e2';
+        badge.style.color = isEnabled ? '#15803d' : '#991b1b';
+    }
+    if (btn) {
+        btn.innerHTML = isEnabled 
+            ? '<i class="fas fa-toggle-off"></i> Disable for Students' 
+            : '<i class="fas fa-toggle-on"></i> Enable for Students';
+        btn.style.background = isEnabled ? '#ef4444' : '#10b981';
+    }
+};
+
+window.toggleStudentNepSelectionDesk = async () => {
+    const activeSchoolId = currentSchoolId || 
+                           sessionStorage.getItem("currentSchoolId") || 
+                           localStorage.getItem("currentSchoolId") || 
+                           currentUserData?.schoolId || 
+                           "INS-F766E8CB4A67";
+    const nextStatus = !window.isStudentNepSelectionEnabled;
+    const actionLabel = nextStatus ? "OPEN (Enable)" : "CLOSE (Disable)";
+
+    if (!confirm(`Are you sure you want to ${actionLabel} NEP Subject Selection Desk for students?`)) return;
+
+    const btn = document.getElementById('admin-nep-toggle-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+    }
+
+    try {
+        // 1. Update feature_controls
+        const { data: fcRow } = await supabaseClient.from('feature_controls').select('id, featureSettings').eq('schoolId', activeSchoolId).maybeSingle();
+        let fcSettings = fcRow?.featureSettings || {};
+        fcSettings.student = fcSettings.student || {};
+        fcSettings.student.subjects = nextStatus;
+        fcSettings.student.nepSelection = nextStatus;
+
+        if (fcRow) {
+            await supabaseClient.from('feature_controls').update({ featureSettings: fcSettings, updatedAt: new Date().toISOString() }).eq('schoolId', activeSchoolId);
+        } else {
+            await supabaseClient.from('feature_controls').insert([{ id: activeSchoolId, schoolId: activeSchoolId, featureSettings: fcSettings, updatedAt: new Date().toISOString() }]);
+        }
+
+        // 2. Update schools table
+        const { data: schRow } = await supabaseClient.from('schools').select('id, academic_config, data').eq('id', activeSchoolId).maybeSingle();
+        const curConfig = schRow?.academic_config || {};
+        curConfig.nepStudentSelectionEnabled = nextStatus;
+        const curData = schRow?.data || {};
+        curData.nepStudentSelectionEnabled = nextStatus;
+
+        await supabaseClient.from('schools').update({
+            academic_config: curConfig,
+            data: curData
+        }).eq('id', activeSchoolId);
+
+        window.isStudentNepSelectionEnabled = nextStatus;
+        if (window.currentFeatureSettings?.student) {
+            window.currentFeatureSettings.student.subjects = nextStatus;
+            window.currentFeatureSettings.student.nepSelection = nextStatus;
+        }
+
+        window.renderStudentNepDeskToggleUI(nextStatus);
+        alert(`NEP Subject Selection Desk is now ${nextStatus ? 'ENABLED (Students can now select and submit their Minor/Skill courses)' : 'DISABLED (Desk is closed for students)'}!`);
+    } catch (e) {
+        console.error("toggleStudentNepSelectionDesk error:", e);
+        alert("Failed to toggle desk status: " + e.message);
+    } finally {
+        if (btn) btn.disabled = false;
+        window.renderStudentNepDeskToggleUI(window.isStudentNepSelectionEnabled);
     }
 };
 
@@ -7997,7 +8134,15 @@ function renderStudentFeatureGrid() {
         <div class="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-y-8 gap-x-4 justify-items-center">
             ${studentFeatures.map(f => {
         const key = getStudentFeatureToggleKey(f.id);
-        const enabled = window.currentFeatureSettings?.student ? window.currentFeatureSettings.student[key] !== false : true;
+        let enabled = window.currentFeatureSettings?.student ? window.currentFeatureSettings.student[key] !== false : true;
+        if (f.id === 'subjects') {
+            const isNepEnabled = (currentStudentSchoolDoc?.academic_config?.nepStudentSelectionEnabled === true) || 
+                                 (currentStudentSchoolDoc?.data?.nepStudentSelectionEnabled === true) ||
+                                 (window.currentFeatureSettings?.student?.subjects === true) ||
+                                 (window.currentFeatureSettings?.student?.nepSelection === true);
+            const hasSub = currentStudentUser?.data?.nepSubjects && currentStudentUser?.data?.nepSubjects?.status !== 'not_submitted';
+            enabled = Boolean(isNepEnabled || hasSub);
+        }
         return `
                 <div class="flex flex-col items-center group ${enabled ? 'cursor-pointer' : 'cursor-not-allowed'}" data-feature="${f.id}" data-locked="${enabled ? 'false' : 'true'}" onclick="handleStudentFeatureClick('${f.id}')" style="opacity:${enabled ? '1' : '0.45'}; filter:${enabled ? 'none' : 'grayscale(1)'};">
                     <div class="w-14 h-14 rounded-full bg-[#E3EBF3] shadow-[6px_6px_14px_#c1c9d2,-6px_-6px_14px_#ffffff] flex items-center justify-center transition-all duration-150 ${enabled ? 'active:shadow-[inset_4px_4px_8px_#c1c9d2,inset_-4px_-4px_8px_#ffffff] group-hover:scale-105' : ''}" style="position:relative;">
@@ -8235,7 +8380,19 @@ window.handleStudentFeatureClick = (featureId) => {
         case 'fee-receipt': window.showStudentReceiptsSection(); break;
         case 'complaint': window.openStudentView('student-complaint-section'); window.loadStudentComplaintHistory(); break;
         case 'sms': window.loadStudentSms(); break;
-        case 'subjects': window.loadStudentSubjectsView(); break;
+        case 'subjects': {
+            const isNepEnabled = (currentStudentSchoolDoc?.academic_config?.nepStudentSelectionEnabled === true) || 
+                                 (currentStudentSchoolDoc?.data?.nepStudentSelectionEnabled === true) ||
+                                 (window.currentFeatureSettings?.student?.subjects === true) ||
+                                 (window.currentFeatureSettings?.student?.nepSelection === true);
+            const hasSub = currentStudentUser?.data?.nepSubjects && currentStudentUser?.data?.nepSubjects?.status !== 'not_submitted';
+            if (!isNepEnabled && !hasSub) {
+                alert("The NEP Subject Selection Desk is currently closed by the College Administration.");
+                return;
+            }
+            window.loadStudentSubjectsView();
+            break;
+        }
         default: window.openStudentDataModule(featureId);
     }
 };
@@ -9001,6 +9158,28 @@ async function loadStudentDashboard() {
     // Update prominent NEP Subject selection status banner
     const nep = currentStudentUser?.data?.nepSubjects || {};
     const cardStatusEl = document.getElementById('stu-nep-card-status');
+    const nepCard = document.getElementById('stu-nep-banner-card');
+    const isNepEnabled = (currentStudentSchoolDoc?.academic_config?.nepStudentSelectionEnabled === true) || 
+                         (currentStudentSchoolDoc?.data?.nepStudentSelectionEnabled === true) ||
+                         (window.currentFeatureSettings?.student?.subjects === true) ||
+                         (window.currentFeatureSettings?.student?.nepSelection === true);
+    const hasSubmitted = nep && nep.status && nep.status !== 'not_submitted';
+    if (nepCard) {
+        if (isNepEnabled || hasSubmitted) {
+            nepCard.style.display = 'block';
+        } else {
+            nepCard.style.display = 'none';
+        }
+    }
+
+    const bannerMajorEl = document.getElementById('stu-nep-banner-major');
+    if (bannerMajorEl) {
+        bannerMajorEl.innerText = "Loading Core Major...";
+        resolveStudentMajorProgram(currentStudentUser).then(maj => {
+            bannerMajorEl.innerText = maj;
+        });
+    }
+
     if (cardStatusEl) {
         if (nep.status === 'approved') {
             cardStatusEl.innerText = "🟢 Approved & Enrolled";
@@ -9570,6 +9749,71 @@ window.replyToMailThread = async () => {
     btn.innerHTML = "<i class='fas fa-reply'></i> Reply"; btn.disabled = false;
 };
 
+// Helper to dynamically resolve student's Core Major Degree Course
+async function resolveStudentMajorProgram(student, supabaseInstance) {
+    if (!student) return "Major Degree Program";
+    const stData = student.data || {};
+
+    // 1. If explicit major subject is already set and not a semester string
+    if (student.majorSubject && !student.majorSubject.toLowerCase().includes("semester")) {
+        return student.majorSubject;
+    }
+    if (stData.majorSubject && !stData.majorSubject.toLowerCase().includes("semester")) {
+        return stData.majorSubject;
+    }
+
+    const client = supabaseInstance || (typeof supabaseClient !== 'undefined' ? supabaseClient : (typeof studentSupabase === 'function' ? studentSupabase() : null));
+    const sId = student.schoolId || (typeof currentSchoolId !== 'undefined' && currentSchoolId ? currentSchoolId : 'INS-F766E8CB4A67');
+
+    // 2. If programId is present, fetch program name
+    if (student.programId && client) {
+        try {
+            const { data: prog } = await client.from('programs').select('name').eq('id', student.programId).maybeSingle();
+            if (prog && prog.name) return prog.name;
+        } catch (e) {
+            console.warn("resolveStudentMajorProgram prog error:", e);
+        }
+    }
+
+    // 3. If departmentId is present, fetch department and matching program
+    const deptId = student.departmentId || stData.departmentId;
+    if (deptId && client) {
+        try {
+            const { data: dept } = await client.from('departments').select('name').eq('id', deptId).maybeSingle();
+            const deptName = dept?.name || "";
+
+            const { data: progs } = await client.from('programs').select('id, name, departmentId').eq('schoolId', sId);
+            if (progs && progs.length) {
+                const linkedProg = progs.find(p => p.departmentId === deptId);
+                if (linkedProg && linkedProg.name) return linkedProg.name;
+
+                if (deptName) {
+                    const cleanDept = deptName.toLowerCase().replace(/department|dept|of/g, '').trim();
+                    const words = cleanDept.split(/\s+/).filter(w => w.length > 2);
+                    const matchedProg = progs.find(p => {
+                        const pName = p.name.toLowerCase();
+                        return words.length && words.every(w => pName.includes(w) || pName.includes(w.replace(/s$/, '')));
+                    });
+                    if (matchedProg && matchedProg.name) return matchedProg.name;
+                }
+            }
+            if (deptName) {
+                return `BACHELORS (HONOURS) WITH ${deptName.toUpperCase()} AS MAJOR`;
+            }
+        } catch (e) {
+            console.warn("resolveStudentMajorProgram dept error:", e);
+        }
+    }
+
+    // 4. Fallback: if student.program exists and is not semester
+    if (student.program && !student.program.toLowerCase().includes("semester")) {
+        return student.program;
+    }
+
+    return "BACHELORS (HONOURS) MAJOR";
+}
+window.resolveStudentMajorProgram = resolveStudentMajorProgram;
+
 // =============================================================================================
 // ---- STUDENT PORTAL: NEP 2020 SUBJECT SELECTION & SUBMISSION DESK ----
 // =============================================================================================
@@ -9580,14 +9824,32 @@ window.loadStudentSubjectsView = async () => {
         return;
     }
 
-    window.openStudentView('student-subjects-section');
-
     const stData = currentStudentUser.data || {};
     const nep = stData.nepSubjects || {};
 
+    const isNepEnabled = (currentStudentSchoolDoc?.academic_config?.nepStudentSelectionEnabled === true) || 
+                         (currentStudentSchoolDoc?.data?.nepStudentSelectionEnabled === true) ||
+                         (window.currentFeatureSettings?.student?.subjects === true) ||
+                         (window.currentFeatureSettings?.student?.nepSelection === true);
+    const hasSubmitted = nep && nep.status && nep.status !== 'not_submitted';
+    if (!isNepEnabled && !hasSubmitted) {
+        alert("The NEP Subject Selection Desk is currently closed by the College Administration.");
+        return;
+    }
+
+    window.openStudentView('student-subjects-section');
+
     const majorEl = document.getElementById('stu_nep_major');
     if (majorEl) {
-        majorEl.value = currentStudentUser.majorSubject || stData.majorSubject || currentStudentUser.class || "Major Degree Program";
+        majorEl.readOnly = true;
+        majorEl.disabled = true;
+        majorEl.style.backgroundColor = "#f1f5f9";
+        majorEl.style.cursor = "not-allowed";
+        majorEl.style.fontWeight = "700";
+        majorEl.value = "Loading Major Course...";
+        resolveStudentMajorProgram(currentStudentUser).then(maj => {
+            majorEl.value = maj;
+        });
     }
 
     // Determine student's semester
@@ -9606,9 +9868,10 @@ window.loadStudentSubjectsView = async () => {
     let enrolledCounts = {};
     try {
         const client = studentSupabase();
+        const activeSchoolId = currentSchoolId || currentStudentUser.schoolId || 'INS-F766E8CB4A67';
         const [csRes, stuRes] = await Promise.all([
-            client.from('college_subjects').select('*').eq('schoolId', currentSchoolId).eq('status', 'active'),
-            client.from('students').select('id, data').eq('schoolId', currentSchoolId)
+            client.from('college_subjects').select('*').eq('schoolId', activeSchoolId).eq('status', 'active'),
+            client.from('students').select('id, data').eq('schoolId', activeSchoolId)
         ]);
         collegeSubjects = csRes.data || [];
         
@@ -9640,6 +9903,12 @@ window.loadStudentSubjectsView = async () => {
             matching = collegeSubjects.filter(cs => cs.category === catName || (catName === 'Skill Enhancement Course (SEC)' && cs.category.includes('Skill')));
         }
 
+        // Zero dummy default subjects: if college hasn't created any for this category yet
+        if (!matching.length && !currentVal) {
+            el.innerHTML = `<option value="">-- No ${defaultLabel.replace(/^Select\s*/i, '')} Available (College has not created yet) --</option>`;
+            return;
+        }
+
         let html = `<option value="">-- ${defaultLabel} --</option>`;
         matching.forEach(s => {
             const enrolled = enrolledCounts[s.name] || 0;
@@ -9662,7 +9931,7 @@ window.loadStudentSubjectsView = async () => {
     populateSelect('stu_nep_mdc', 'Multidisciplinary Course (MDC)', 'Select MDC Course', nep.mdc || stData.mdcSubject || "");
     populateSelect('stu_nep_skill', 'Skill Enhancement Course (SEC)', 'Select Skill (SEC) Course', nep.skill || stData.skillSubject || "");
     populateSelect('stu_nep_health', 'Health & Wellness', 'Select Health & Wellness Course', nep.healthWellness || stData.healthWellness || "");
-    populateSelect('stu_nep_evs', 'Environmental Studies (EVS)', 'Select EVS Course', nep.evs || stData.evsSubject || "Environmental Studies (EVS)");
+    populateSelect('stu_nep_evs', 'Environmental Studies (EVS)', 'Select EVS Course', nep.evs || stData.evsSubject || "");
     populateSelect('stu_nep_comm', 'Communication Skills', 'Select Communication Course', nep.communication || stData.commSubject || "");
 
     const badge = document.getElementById('stu-nep-status-badge');
@@ -9783,12 +10052,15 @@ window.submitStudentNepSubjects = async (event) => {
     if (event) event.preventDefault();
     if (!currentStudentUser?.id) return alert("Please log in again.");
 
-    const major = document.getElementById('stu_nep_major')?.value.trim() || currentStudentUser.majorSubject || "";
+    let major = document.getElementById('stu_nep_major')?.value.trim() || currentStudentUser.majorSubject || "";
+    if (major === "Loading Major Course..." || major === "Major Degree Program" || !major) {
+        major = await resolveStudentMajorProgram(currentStudentUser);
+    }
     const minor = document.getElementById('stu_nep_minor')?.value.trim();
     const mdc = document.getElementById('stu_nep_mdc')?.value.trim();
     const skill = document.getElementById('stu_nep_skill')?.value.trim();
     const health = document.getElementById('stu_nep_health')?.value.trim();
-    const evs = document.getElementById('stu_nep_evs')?.value.trim() || "Environmental Studies (EVS)";
+    const evs = document.getElementById('stu_nep_evs')?.value.trim() || "";
     const comm = document.getElementById('stu_nep_comm')?.value.trim();
 
     if (!minor || !mdc || !skill || !health || !comm) {

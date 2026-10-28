@@ -1271,8 +1271,17 @@
                                 <h3 style="color:#4f46e5; margin:0;"><i class="fas fa-book-bookmark"></i> Minor & Other Subjects Management</h3>
                                 <p style="font-size:12px; color:#64748b; margin:4px 0 0 0;">Create Semester-wise Minor, MDC, Skill, and Value-Added courses with Seat Capacities & manage student approvals.</p>
                             </div>
-                            <div style="display:flex; gap:8px;">
-                                <button type="button" class="action-btn" style="background:#10b981; color:#fff;" onclick="window.approveAllPendingNepSubjects()"><i class="fas fa-check-double"></i> Approve All Pending</button>
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:8px; background:#f8fafc; padding:6px 14px; border-radius:10px; border:1px solid #cbd5e1;">
+                                    <span style="font-size:12px; font-weight:700; color:#334155;">Student Portal Desk:</span>
+                                    <span id="admin-nep-portal-status-badge" style="font-size:11px; font-weight:800; padding:3px 10px; border-radius:20px; background:#fee2e2; color:#991b1b;">
+                                        🔴 CLOSED / DISABLED
+                                    </span>
+                                    <button type="button" id="admin-nep-toggle-btn" class="action-btn" style="background:#10b981; color:#fff; font-size:11px; padding:5px 12px; font-weight:700; border-radius:8px;" onclick="window.toggleStudentNepSelectionDesk()">
+                                        <i class="fas fa-toggle-on"></i> Enable for Students
+                                    </button>
+                                </div>
+                                <button type="button" class="action-btn" style="background:#10b981; color:#fff; padding:6px 14px; font-weight:700;" onclick="window.approveAllPendingNepSubjects()"><i class="fas fa-check-double"></i> Approve All Pending</button>
                             </div>
                         </div>
 
@@ -2998,7 +3007,7 @@
                                         Select Subjects
                                     </span>
                                 </div>
-                                <p style="margin: 4px 0 0 0; font-size: 12px; color: #e0e7ff;">Select your Minor, MDC, Skill (SEC), Health & Wellness, EVS, and Communication courses.</p>
+                                <p style="margin: 4px 0 0 0; font-size: 12px; color: #e0e7ff;">Major Course: <strong id="stu-nep-banner-major" style="color: #fef08a;">Loading Core Major...</strong> &bull; Select your Minor, MDC, Skill, Health, EVS, & Comm courses.</p>
                             </div>
                         </div>
                         <button type="button" onclick="window.loadStudentSubjectsView()" style="background: #ffffff; color: #1e3a8a; font-weight: 800; font-size: 13px; padding: 11px 22px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.15s ease;">
@@ -3071,8 +3080,8 @@
                     <form id="stu-nep-form" onsubmit="window.submitStudentNepSubjects(event)" style="display:flex; flex-direction:column; gap:14px; text-align:left;">
                         <div>
                             <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">1. Major Subject (Core Degree Program) *</label>
-                            <input type="text" id="stu_nep_major" readonly class="input-premium" style="width:100%; background:#f8fafc; font-weight:700; color:#1e293b; cursor:not-allowed; padding:8px 12px;">
-                            <span style="font-size:11px; color:#94a3b8;">Allotted during admission / enrollment (Locked).</span>
+                            <input type="text" id="stu_nep_major" readonly disabled class="input-premium" style="width:100%; background:#f1f5f9; font-weight:700; color:#1e293b; cursor:not-allowed; padding:8px 12px;">
+                            <span style="font-size:11px; color:#94a3b8;">Allotted during admission / enrollment (Locked & Immutable).</span>
                         </div>
 
                         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
@@ -4746,7 +4755,7 @@
                     </div>
     </div>
 </div>
-<script src="script.js?v=20261028_v3"></script>
+<script src="script.js?v=20261028_v4"></script>
 <!-- STUDENT SUBJECTS MODAL (HOD) -->
 <div id="hod-subjects-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index: 10000;">
     <div class="modal-content" style="max-width: 500px; width: 100%;">

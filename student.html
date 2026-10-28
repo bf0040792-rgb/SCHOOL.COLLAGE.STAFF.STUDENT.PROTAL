@@ -130,7 +130,7 @@
                                         Select Subjects
                                     </span>
                                 </div>
-                                <p style="margin: 4px 0 0 0; font-size: 12px; color: #e0e7ff;">Select your Minor, MDC, Skill (SEC), Health & Wellness, EVS, and Communication courses.</p>
+                                <p style="margin: 4px 0 0 0; font-size: 12px; color: #e0e7ff;">Major Course: <strong id="stu-nep-banner-major" style="color: #fef08a;">Loading Core Major...</strong> &bull; Select your Minor, MDC, Skill, Health, EVS, & Comm courses.</p>
                             </div>
                         </div>
                         <button type="button" onclick="window.loadStudentSubjectsView()" style="background: #ffffff; color: #1e3a8a; font-weight: 800; font-size: 13px; padding: 11px 22px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.15s ease;">
@@ -302,9 +302,9 @@
                     <form id="stu-nep-form" onsubmit="window.submitStudentNepSubjects(event)" class="space-y-4 text-left">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">1. Major Subject (Core Degree Program) *</label>
-                            <input type="text" id="stu_nep_major" readonly
-                                class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-800 font-bold text-sm outline-none cursor-not-allowed">
-                            <span class="text-[11px] text-gray-400">Allotted during admission / enrollment (Locked).</span>
+                            <input type="text" id="stu_nep_major" readonly disabled
+                                class="w-full p-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-800 font-bold text-sm outline-none cursor-not-allowed">
+                            <span class="text-[11px] text-gray-400">Allotted during admission / enrollment (Locked & Immutable).</span>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -717,7 +717,7 @@
 
     </div>
 
-    <script src="student.js?v=20261028_v3"></script>
+    <script src="student.js?v=20261028_v4"></script>
 </body>
 
 </html>
