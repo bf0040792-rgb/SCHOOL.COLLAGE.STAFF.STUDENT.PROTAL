@@ -426,6 +426,29 @@ async function loadStudentDashboard() {
         logo.style.display = 'inline-block';
     }
     $('stu-due-balance') && ($('stu-due-balance').innerText = currentStudentUser?.dueBalance || currentStudentUser?.feeDue || 0);
+
+    const nep = currentStudentUser?.data?.nepSubjects || {};
+    const cardStatusEl = $('stu-nep-card-status');
+    if (cardStatusEl) {
+        if (nep.status === 'approved') {
+            cardStatusEl.innerText = "🟢 Approved & Enrolled";
+            cardStatusEl.style.background = "#dcfce7";
+            cardStatusEl.style.color = "#15803d";
+        } else if (nep.status === 'pending') {
+            cardStatusEl.innerText = "🟡 Pending Approval";
+            cardStatusEl.style.background = "#fef3c7";
+            cardStatusEl.style.color = "#b45309";
+        } else if (nep.status === 'rejected') {
+            cardStatusEl.innerText = "🔴 Rejected (Re-select)";
+            cardStatusEl.style.background = "#fee2e2";
+            cardStatusEl.style.color = "#991b1b";
+        } else {
+            cardStatusEl.innerText = "🔵 Select Subjects Now";
+            cardStatusEl.style.background = "#ffffff";
+            cardStatusEl.style.color = "#1e3a8a";
+        }
+    }
+
     renderStudentFeatureGrid();
     window.openStudentView('student-main-grid');
 }
@@ -2246,6 +2269,7 @@ window.loadStudentSubjectsView = async () => {
     populateSelect('stu_nep_comm', 'Communication Skills', 'Select Communication Course', nep.communication || stData.commSubject || "");
 
     const badge = $('stu-nep-status-badge');
+    const cardStatus = $('stu-nep-card-status');
     const lockedNotice = $('stu-nep-locked-notice');
     const pendingNotice = $('stu-nep-pending-notice');
     const rejectedNotice = $('stu-nep-rejected-notice');
@@ -2260,6 +2284,11 @@ window.loadStudentSubjectsView = async () => {
             badge.style.background = "#dcfce7";
             badge.style.color = "#15803d";
         }
+        if (cardStatus) {
+            cardStatus.innerText = "🟢 Approved & Enrolled";
+            cardStatus.style.background = "#dcfce7";
+            cardStatus.style.color = "#15803d";
+        }
         if (lockedNotice) lockedNotice.style.display = "block";
         if (pendingNotice) pendingNotice.style.display = "none";
         if (rejectedNotice) rejectedNotice.style.display = "none";
@@ -2273,6 +2302,11 @@ window.loadStudentSubjectsView = async () => {
             badge.innerText = "🟡 Pending College Approval";
             badge.style.background = "#fef3c7";
             badge.style.color = "#b45309";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🟡 Pending Approval";
+            cardStatus.style.background = "#fef3c7";
+            cardStatus.style.color = "#b45309";
         }
         if (lockedNotice) lockedNotice.style.display = "none";
         if (pendingNotice) pendingNotice.style.display = "block";
@@ -2294,6 +2328,11 @@ window.loadStudentSubjectsView = async () => {
             badge.innerText = "🔴 Rejected (Please Re-select)";
             badge.style.background = "#fee2e2";
             badge.style.color = "#991b1b";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🔴 Rejected (Re-select)";
+            cardStatus.style.background = "#fee2e2";
+            cardStatus.style.color = "#991b1b";
         }
         if (lockedNotice) lockedNotice.style.display = "none";
         if (pendingNotice) pendingNotice.style.display = "none";
@@ -2320,6 +2359,11 @@ window.loadStudentSubjectsView = async () => {
             badge.innerText = "⚪ Not Submitted";
             badge.style.background = "#f1f5f9";
             badge.style.color = "#64748b";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🔵 Select Subjects Now";
+            cardStatus.style.background = "#ffffff";
+            cardStatus.style.color = "#1e3a8a";
         }
         if (lockedNotice) lockedNotice.style.display = "none";
         if (pendingNotice) pendingNotice.style.display = "none";

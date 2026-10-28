@@ -2984,6 +2984,29 @@
                     </div>
                 </div>
 
+                <!-- PROMINENT NEP 2020 SUBJECT SELECTION DESK BANNER CARD -->
+                <div id="stu-nep-banner-card" class="card" style="margin-bottom: 24px; border-radius: 16px; background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; padding: 20px 24px; box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.25); border: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; color: #fff; flex-shrink: 0;">
+                                <i class="fas fa-book-bookmark"></i>
+                            </div>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.01em;">Minor & Other Subjects (NEP Selection)</h3>
+                                    <span id="stu-nep-card-status" style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; background: #ffffff; color: #1e3a8a;">
+                                        Select Subjects
+                                    </span>
+                                </div>
+                                <p style="margin: 4px 0 0 0; font-size: 12px; color: #e0e7ff;">Select your Minor, MDC, Skill (SEC), Health & Wellness, EVS, and Communication courses.</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="window.loadStudentSubjectsView()" style="background: #ffffff; color: #1e3a8a; font-weight: 800; font-size: 13px; padding: 11px 22px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.15s ease;">
+                            <i class="fas fa-edit"></i> Choose / View Subjects <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Student Welcome Header -->
                 <div style="text-align:center; margin-bottom:20px;">
                     <h2
@@ -3014,6 +3037,97 @@
                             class="fas fa-qrcode"></i> Pay Now (Zero Commission)</button>
                 </div>
             </div> <!-- End student-main-grid -->
+
+            <!-- STUDENT NEP SUBJECT SELECTION SECTION -->
+            <div id="student-subjects-section" class="student-view-section" style="display: none;">
+                <button type="button" onclick="openStudentView('student-main-grid')"
+                    class="mb-4 flex items-center gap-2 text-slate-600 font-semibold" style="background:none; border:none; cursor:pointer; font-size:14px;"><i class="fas fa-arrow-left"></i>
+                    Back to Dashboard</button>
+                <div class="card" style="padding:25px; border-radius:16px; background:#fff; box-shadow:0 4px 15px rgba(0,0,0,0.06); max-width:800px; margin:0 auto;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid #f1f5f9; gap:10px;">
+                        <div>
+                            <h3 style="font-size:18px; font-weight:800; color:#1E3A8A; margin:0; display:flex; align-items:center; gap:8px;">
+                                <i class="fas fa-book-bookmark text-indigo-600" style="color:#4f46e5;"></i> NEP 2020 Subject Selection Desk
+                            </h3>
+                            <p style="font-size:12px; color:#64748b; margin:4px 0 0 0;">Select your Minor, MDC, Skill, and Value-Added courses for official college approval.</p>
+                        </div>
+                        <span id="stu-nep-status-badge" style="padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; background: #f1f5f9; color: #475569;">
+                            Checking status...
+                        </span>
+                    </div>
+
+                    <div id="stu-nep-locked-notice" style="display:none; margin-bottom:18px; padding:12px 16px; border-radius:10px; background:#ecfdf5; border-left:4px solid #10b981; color:#065f46; font-size:12px; font-weight:600;">
+                        <i class="fas fa-check-circle mr-1"></i> Your subject selection has been officially approved by College Administration and is locked.
+                    </div>
+
+                    <div id="stu-nep-pending-notice" style="display:none; margin-bottom:18px; padding:12px 16px; border-radius:10px; background:#fffbeb; border-left:4px solid #f59e0b; color:#92400e; font-size:12px; font-weight:600;">
+                        <i class="fas fa-clock mr-1"></i> Your subject choices are submitted and currently pending approval from College Administration.
+                    </div>
+
+                    <div id="stu-nep-rejected-notice" style="display:none; margin-bottom:18px; padding:12px 16px; border-radius:10px; background:#fef2f2; border-left:4px solid #ef4444; color:#991b1b; font-size:12px; font-weight:600;">
+                        <i class="fas fa-exclamation-circle mr-1"></i> <span id="stu-nep-rejected-text">Your previous subject submission was rejected by College Administration. Please re-select from available subjects and re-submit.</span>
+                    </div>
+
+                    <form id="stu-nep-form" onsubmit="window.submitStudentNepSubjects(event)" style="display:flex; flex-direction:column; gap:14px; text-align:left;">
+                        <div>
+                            <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">1. Major Subject (Core Degree Program) *</label>
+                            <input type="text" id="stu_nep_major" readonly class="input-premium" style="width:100%; background:#f8fafc; font-weight:700; color:#1e293b; cursor:not-allowed; padding:8px 12px;">
+                            <span style="font-size:11px; color:#94a3b8;">Allotted during admission / enrollment (Locked).</span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">2. Minor Subject *</label>
+                                <select id="stu_nep_minor" required class="input-premium" style="width:100%; padding:8px 12px; font-weight:600;">
+                                    <option value="">-- Select Approved Minor Subject --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">3. MDC (Multidisciplinary Course) *</label>
+                                <select id="stu_nep_mdc" required class="input-premium" style="width:100%; padding:8px 12px; font-weight:600;">
+                                    <option value="">-- Select Approved MDC Subject --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">4. Skill Enhancement Course (SEC / Skill) *</label>
+                            <select id="stu_nep_skill" required class="input-premium" style="width:100%; padding:8px 12px; font-weight:600;">
+                                <option value="">-- Select Approved Skill Subject --</option>
+                            </select>
+                            <span style="font-size:11px; color:#94a3b8;">Your dedicated Skill Teacher will manage this class batch roster.</span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">5. Value Added 1 (Health & Wellness) *</label>
+                                <select id="stu_nep_health" required class="input-premium" style="width:100%; padding:8px 12px; font-weight:600;">
+                                    <option value="">-- Select Health & Wellness Course --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">6. Value Added 2 (EVS) *</label>
+                                <select id="stu_nep_evs" required class="input-premium" style="width:100%; padding:8px 12px; font-weight:600;">
+                                    <option value="">-- Select Environmental Studies (EVS) Course --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="display:block; font-size:11px; font-weight:700; text-transform:uppercase; color:#475569; margin-bottom:4px;">7. Ability Enhancement (AEC - Communication) *</label>
+                            <select id="stu_nep_comm" required class="input-premium" style="width:100%; padding:8px 12px; font-weight:600;">
+                                <option value="">-- Select Communication Course --</option>
+                            </select>
+                        </div>
+
+                        <div style="padding-top:14px; border-top:1px solid #f1f5f9; text-align:right;">
+                            <button type="submit" id="stu_nep_submit_btn" class="submit-btn" style="padding:10px 24px; font-size:13px; font-weight:700; background:linear-gradient(135deg, #4f46e5, #2563eb); color:#fff; border-radius:10px;">
+                                <i class="fas fa-paper-plane"></i> Submit Subject Choices for Approval
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <!-- Digital ID Card Section -->
             <div id="student-idcard-section" class="student-view-section" style="display: none;">
@@ -4632,7 +4746,7 @@
                     </div>
     </div>
 </div>
-<script src="script.js?v=20261028_v2"></script>
+<script src="script.js?v=20261028_v3"></script>
 <!-- STUDENT SUBJECTS MODAL (HOD) -->
 <div id="hod-subjects-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index: 10000;">
     <div class="modal-content" style="max-width: 500px; width: 100%;">

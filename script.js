@@ -7964,6 +7964,7 @@ const studentFeatures = [
     { id: 'datesheet', title: 'DateSheet', icon: 'calendar-days' },
     { id: 'attendance', title: 'Attendance', icon: 'calendar-check' },
     { id: 'sms', title: 'Sms', icon: 'message-square' },
+    { id: 'subjects', title: 'NEP Subjects', icon: 'book' },
     { id: 'calendar', title: 'Calendar Planing', icon: 'calendar-clock' },
     { id: 'idcard', title: 'Id Card', icon: 'credit-card' },
     { id: 'syllabus', title: 'Syllabus', icon: 'book' },
@@ -8234,6 +8235,7 @@ window.handleStudentFeatureClick = (featureId) => {
         case 'fee-receipt': window.showStudentReceiptsSection(); break;
         case 'complaint': window.openStudentView('student-complaint-section'); window.loadStudentComplaintHistory(); break;
         case 'sms': window.loadStudentSms(); break;
+        case 'subjects': window.loadStudentSubjectsView(); break;
         default: window.openStudentDataModule(featureId);
     }
 };
@@ -8996,6 +8998,29 @@ async function loadStudentDashboard() {
     if (dueElem) dueElem.innerText = due;
     if (due > 0) document.getElementById("stu-pay-amount") && (document.getElementById("stu-pay-amount").value = due);
 
+    // Update prominent NEP Subject selection status banner
+    const nep = currentStudentUser?.data?.nepSubjects || {};
+    const cardStatusEl = document.getElementById('stu-nep-card-status');
+    if (cardStatusEl) {
+        if (nep.status === 'approved') {
+            cardStatusEl.innerText = "🟢 Approved & Enrolled";
+            cardStatusEl.style.background = "#dcfce7";
+            cardStatusEl.style.color = "#15803d";
+        } else if (nep.status === 'pending') {
+            cardStatusEl.innerText = "🟡 Pending Approval";
+            cardStatusEl.style.background = "#fef3c7";
+            cardStatusEl.style.color = "#b45309";
+        } else if (nep.status === 'rejected') {
+            cardStatusEl.innerText = "🔴 Rejected (Re-select)";
+            cardStatusEl.style.background = "#fee2e2";
+            cardStatusEl.style.color = "#991b1b";
+        } else {
+            cardStatusEl.innerText = "🔵 Select Subjects Now";
+            cardStatusEl.style.background = "#ffffff";
+            cardStatusEl.style.color = "#1e3a8a";
+        }
+    }
+
     renderStudentFeatureGrid();
 }
 
@@ -9543,6 +9568,282 @@ window.replyToMailThread = async () => {
         alert("Error sending reply");
     }
     btn.innerHTML = "<i class='fas fa-reply'></i> Reply"; btn.disabled = false;
+};
+
+// =============================================================================================
+// ---- STUDENT PORTAL: NEP 2020 SUBJECT SELECTION & SUBMISSION DESK ----
+// =============================================================================================
+
+window.loadStudentSubjectsView = async () => {
+    if (!currentStudentUser) {
+        alert("Please log in to your student account first.");
+        return;
+    }
+
+    window.openStudentView('student-subjects-section');
+
+    const stData = currentStudentUser.data || {};
+    const nep = stData.nepSubjects || {};
+
+    const majorEl = document.getElementById('stu_nep_major');
+    if (majorEl) {
+        majorEl.value = currentStudentUser.majorSubject || stData.majorSubject || currentStudentUser.class || "Major Degree Program";
+    }
+
+    // Determine student's semester
+    const rawClass = String(currentStudentUser.class || stData.semester || '1st Semester').trim();
+    let stuSemester = "1st Semester";
+    if (rawClass.includes("2")) stuSemester = "2nd Semester";
+    else if (rawClass.includes("3")) stuSemester = "3rd Semester";
+    else if (rawClass.includes("4")) stuSemester = "4th Semester";
+    else if (rawClass.includes("5")) stuSemester = "5th Semester";
+    else if (rawClass.includes("6")) stuSemester = "6th Semester";
+    else if (rawClass.includes("7")) stuSemester = "7th Semester";
+    else if (rawClass.includes("8")) stuSemester = "8th Semester";
+
+    // Fetch dynamic college subjects created by Admin for this college and semester
+    let collegeSubjects = [];
+    let enrolledCounts = {};
+    try {
+        const client = studentSupabase();
+        const [csRes, stuRes] = await Promise.all([
+            client.from('college_subjects').select('*').eq('schoolId', currentSchoolId).eq('status', 'active'),
+            client.from('students').select('id, data').eq('schoolId', currentSchoolId)
+        ]);
+        collegeSubjects = csRes.data || [];
+        
+        (stuRes.data || []).forEach(st => {
+            const d = st.data || {};
+            const n = d.nepSubjects || {};
+            if (n.status === 'approved') {
+                [n.minor, n.mdc, n.skill, n.healthWellness, n.evs, n.communication].filter(Boolean).forEach(sName => {
+                    enrolledCounts[sName] = (enrolledCounts[sName] || 0) + 1;
+                });
+            }
+        });
+    } catch (err) {
+        console.warn("Could not load college_subjects in script.js:", err);
+    }
+
+    // Helper to populate select with available subjects & live seat counter
+    const populateSelect = (selectId, catName, defaultLabel, currentVal) => {
+        const el = document.getElementById(selectId);
+        if (!el) return;
+        
+        let matching = collegeSubjects.filter(cs => {
+            const catMatch = (cs.category === catName || (catName === 'Skill Enhancement Course (SEC)' && cs.category.includes('Skill')));
+            const semMatch = (!cs.semester || cs.semester === 'All Semesters' || cs.semester === stuSemester);
+            return catMatch && semMatch;
+        });
+
+        if (!matching.length) {
+            matching = collegeSubjects.filter(cs => cs.category === catName || (catName === 'Skill Enhancement Course (SEC)' && cs.category.includes('Skill')));
+        }
+
+        let html = `<option value="">-- ${defaultLabel} --</option>`;
+        matching.forEach(s => {
+            const enrolled = enrolledCounts[s.name] || 0;
+            const totalSeats = s.seats || 50;
+            const available = Math.max(0, totalSeats - enrolled);
+            const isFull = (available <= 0 && s.name !== currentVal);
+            const selected = (s.name === currentVal) ? 'selected' : '';
+            const seatText = isFull ? ' [SEATS FULL]' : ` (${available} seats left)`;
+            html += `<option value="${s.name}" ${selected} ${isFull ? 'disabled style="color:#ef4444;"' : ''}>${s.name}${seatText}</option>`;
+        });
+
+        if (currentVal && !matching.some(m => m.name === currentVal)) {
+            html += `<option value="${currentVal}" selected>${currentVal} (Previously Selected)</option>`;
+        }
+
+        el.innerHTML = html;
+    };
+
+    populateSelect('stu_nep_minor', 'Minor Course', 'Select Minor Course', nep.minor || stData.minorSubject || "");
+    populateSelect('stu_nep_mdc', 'Multidisciplinary Course (MDC)', 'Select MDC Course', nep.mdc || stData.mdcSubject || "");
+    populateSelect('stu_nep_skill', 'Skill Enhancement Course (SEC)', 'Select Skill (SEC) Course', nep.skill || stData.skillSubject || "");
+    populateSelect('stu_nep_health', 'Health & Wellness', 'Select Health & Wellness Course', nep.healthWellness || stData.healthWellness || "");
+    populateSelect('stu_nep_evs', 'Environmental Studies (EVS)', 'Select EVS Course', nep.evs || stData.evsSubject || "Environmental Studies (EVS)");
+    populateSelect('stu_nep_comm', 'Communication Skills', 'Select Communication Course', nep.communication || stData.commSubject || "");
+
+    const badge = document.getElementById('stu-nep-status-badge');
+    const cardStatus = document.getElementById('stu-nep-card-status');
+    const lockedNotice = document.getElementById('stu-nep-locked-notice');
+    const pendingNotice = document.getElementById('stu-nep-pending-notice');
+    const rejectedNotice = document.getElementById('stu-nep-rejected-notice');
+    const rejectedText = document.getElementById('stu-nep-rejected-text');
+    const submitBtn = document.getElementById('stu_nep_submit_btn');
+
+    const status = nep.status || (stData.minorSubject && stData.skillSubject ? 'approved' : 'not_submitted');
+
+    if (status === 'approved') {
+        if (badge) {
+            badge.innerText = "🟢 Approved & Enrolled";
+            badge.style.background = "#dcfce7";
+            badge.style.color = "#15803d";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🟢 Approved & Enrolled";
+            cardStatus.style.background = "#dcfce7";
+            cardStatus.style.color = "#15803d";
+        }
+        if (lockedNotice) lockedNotice.style.display = "block";
+        if (pendingNotice) pendingNotice.style.display = "none";
+        if (rejectedNotice) rejectedNotice.style.display = "none";
+        if (submitBtn) submitBtn.style.display = "none";
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = true; el.classList.add('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    } else if (status === 'pending') {
+        if (badge) {
+            badge.innerText = "🟡 Pending College Approval";
+            badge.style.background = "#fef3c7";
+            badge.style.color = "#b45309";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🟡 Pending Approval";
+            cardStatus.style.background = "#fef3c7";
+            cardStatus.style.color = "#b45309";
+        }
+        if (lockedNotice) lockedNotice.style.display = "none";
+        if (pendingNotice) pendingNotice.style.display = "block";
+        if (rejectedNotice) rejectedNotice.style.display = "none";
+        if (submitBtn) {
+            submitBtn.style.display = "inline-flex";
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = "0.7";
+            submitBtn.style.cursor = "not-allowed";
+            submitBtn.innerHTML = "<i class='fas fa-lock'></i> Request Submitted (Pending Approval)";
+        }
+        // Anti-spam lock: disable all inputs while pending
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = true; el.classList.add('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    } else if (status === 'rejected') {
+        if (badge) {
+            badge.innerText = "🔴 Rejected (Please Re-select)";
+            badge.style.background = "#fee2e2";
+            badge.style.color = "#991b1b";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🔴 Rejected (Re-select)";
+            cardStatus.style.background = "#fee2e2";
+            cardStatus.style.color = "#991b1b";
+        }
+        if (lockedNotice) lockedNotice.style.display = "none";
+        if (pendingNotice) pendingNotice.style.display = "none";
+        if (rejectedNotice) {
+            rejectedNotice.style.display = "block";
+            if (rejectedText && nep.rejectionReason) {
+                rejectedText.innerText = `Rejection Reason: ${nep.rejectionReason}. Please re-select from available courses below and re-submit.`;
+            }
+        }
+        if (submitBtn) {
+            submitBtn.style.display = "inline-flex";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.style.cursor = "pointer";
+            submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Re-Submit Subject Choices";
+        }
+        // Unlock inputs so student can choose available subjects
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    } else {
+        if (badge) {
+            badge.innerText = "⚪ Not Submitted";
+            badge.style.background = "#f1f5f9";
+            badge.style.color = "#64748b";
+        }
+        if (cardStatus) {
+            cardStatus.innerText = "🔵 Select Subjects Now";
+            cardStatus.style.background = "#ffffff";
+            cardStatus.style.color = "#1e3a8a";
+        }
+        if (lockedNotice) lockedNotice.style.display = "none";
+        if (pendingNotice) pendingNotice.style.display = "none";
+        if (rejectedNotice) rejectedNotice.style.display = "none";
+        if (submitBtn) {
+            submitBtn.style.display = "inline-flex";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.style.cursor = "pointer";
+            submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Submit Subject Choices for Approval";
+        }
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    }
+};
+
+window.submitStudentNepSubjects = async (event) => {
+    if (event) event.preventDefault();
+    if (!currentStudentUser?.id) return alert("Please log in again.");
+
+    const major = document.getElementById('stu_nep_major')?.value.trim() || currentStudentUser.majorSubject || "";
+    const minor = document.getElementById('stu_nep_minor')?.value.trim();
+    const mdc = document.getElementById('stu_nep_mdc')?.value.trim();
+    const skill = document.getElementById('stu_nep_skill')?.value.trim();
+    const health = document.getElementById('stu_nep_health')?.value.trim();
+    const evs = document.getElementById('stu_nep_evs')?.value.trim() || "Environmental Studies (EVS)";
+    const comm = document.getElementById('stu_nep_comm')?.value.trim();
+
+    if (!minor || !mdc || !skill || !health || !comm) {
+        return alert("Please fill in all subjects (Minor, MDC, Skill, Health & Wellness, and Communication).");
+    }
+
+    const btn = document.getElementById('stu_nep_submit_btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Submitting to College Admin...";
+    }
+
+    try {
+        const client = studentSupabase();
+        const existingData = currentStudentUser.data || {};
+        const nepObj = {
+            major: major,
+            minor: minor,
+            mdc: mdc,
+            skill: skill,
+            healthWellness: health,
+            evs: evs,
+            communication: comm,
+            status: 'pending',
+            submittedAt: new Date().toISOString()
+        };
+
+        const updatedData = {
+            ...existingData,
+            minorSubject: minor,
+            mdcSubject: mdc,
+            skillSubject: skill,
+            healthWellness: health,
+            evsSubject: evs,
+            commSubject: comm,
+            nepSubjects: nepObj
+        };
+
+        const { error } = await client
+            .from('students')
+            .update({ data: updatedData })
+            .eq('id', currentStudentUser.id)
+            .eq('schoolId', currentSchoolId);
+
+        if (error) throw error;
+
+        currentStudentUser.data = updatedData;
+        alert("Subjects submitted successfully! Your choices have been sent to College Administration for approval.");
+        await window.loadStudentSubjectsView();
+    } catch (err) {
+        console.error("Failed to submit NEP subjects:", err);
+        alert("Failed to submit subjects: " + (err.message || "Unknown error"));
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 };
 
 
