@@ -1120,11 +1120,13 @@
                             <div class="form-group"><label>Email ID</label><input type="email" id="s_email"></div>
                             <div class="form-group"><label>Password</label><input type="text" id="s_pass"></div>
                             <div class="form-group"><label>Role</label>
-                                <select id="s_role" onchange="if(this.value==='HOD'){document.getElementById('s_dept_group').style.display='block';}else{document.getElementById('s_dept_group').style.display='none';}">
+                                <select id="s_role" onchange="window.handleStaffRoleChange(this.value, 's_dept_group', 's_subject_group')">
                                     <option value="Chairman">Chairman</option>
                                     <option value="Principal">Principal</option>
                                     <option value="Teacher">Teacher</option>
                                     <option value="HOD">HOD (Department Head)</option>
+                                    <option value="Skill Teacher">Skill Course Teacher</option>
+                                    <option value="MDC Teacher">MDC Course Teacher</option>
                                     <option value="Accountant">Accountant</option>
                                     <option value="Clerk">Clerk</option>
                                     <option value="Vice Principal">Vice Principal</option>
@@ -1134,6 +1136,7 @@
                                 </select>
                             </div>
                             <div class="form-group" id="s_dept_group" style="display:none;"><label>Department (Major)</label><select id="s_dept"><option value="">-- Select --</option></select></div>
+                            <div class="form-group" id="s_subject_group" style="display:none;"><label>Assigned Skill / MDC Subject</label><input type="text" id="s_subject" placeholder="e.g. Web Designing" class="input-premium"></div>
                         </div>
                         <button class="submit-btn" id="s_btn" onclick="saveStaff()"><i class="fas fa-save"></i> Add
                             Staff Member</button>
@@ -3815,11 +3818,13 @@
                         placeholder="login@gmail.com"></div>
                 <div class="form-group"><label>Set New Password</label><input type="text" id="edit_s_pass"
                         placeholder="Leave existing password or update"></div>
-                <div class="form-group"><label>Role</label><select id="edit_s_role" onchange="if(this.value==='HOD'){document.getElementById('edit_s_dept_group').style.display='block';}else{document.getElementById('edit_s_dept_group').style.display='none';}">
+                <div class="form-group"><label>Role</label><select id="edit_s_role" onchange="window.handleStaffRoleChange(this.value, 'edit_s_dept_group', 'edit_s_subject_group')">
     <option value="Chairman">Chairman</option>
     <option value="Principal">Principal</option>
     <option value="Teacher">Teacher</option>
     <option value="HOD">HOD (Department Head)</option>
+    <option value="Skill Teacher">Skill Course Teacher</option>
+    <option value="MDC Teacher">MDC Course Teacher</option>
     <option value="Accountant">Accountant</option>
     <option value="Clerk">Clerk</option>
     <option value="Vice Principal">Vice Principal</option>
@@ -3828,6 +3833,7 @@
     <option value="Receptionist">Receptionist</option>
 </select></div>
 <div class="form-group" id="edit_s_dept_group" style="display:none;"><label>Department (Major)</label><select id="edit_s_dept"><option value="">-- Select --</option></select></div>
+<div class="form-group" id="edit_s_subject_group" style="display:none;"><label>Assigned Skill / MDC Subject</label><input type="text" id="edit_s_subject" placeholder="e.g. Web Designing" class="input-premium"></div>
                 <div class="form-group"><label>Account Status</label><input type="text" id="edit_s_status" readonly>
                 </div>
             </div>
@@ -4482,7 +4488,7 @@
                     </div>
     </div>
 </div>
-<script src="script.js?v=20261027_v2"></script>
+<script src="script.js?v=20261028_v1"></script>
 <!-- STUDENT SUBJECTS MODAL (HOD) -->
 <div id="hod-subjects-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index: 10000;">
     <div class="modal-content" style="max-width: 500px; width: 100%;">

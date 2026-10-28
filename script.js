@@ -5030,8 +5030,24 @@ window.shareImage = async (imgId, filename) => {
 };
 
 // ================= STAFF & PRIVILEGES =================
+window.handleStaffRoleChange = (role, deptGroupId, subjGroupId) => {
+    const deptEl = document.getElementById(deptGroupId);
+    const subjEl = document.getElementById(subjGroupId);
+    if (role === 'HOD') {
+        if (deptEl) deptEl.style.display = 'block';
+        if (subjEl) subjEl.style.display = 'none';
+    } else if (role === 'Skill Teacher' || role === 'MDC Teacher') {
+        if (deptEl) deptEl.style.display = 'none';
+        if (subjEl) subjEl.style.display = 'block';
+    } else {
+        if (deptEl) deptEl.style.display = 'none';
+        if (subjEl) subjEl.style.display = 'none';
+    }
+};
+
 window.saveStaff = async () => {
     const name = document.getElementById("s_name").value.trim(); const email = document.getElementById("s_email").value.trim(); const pass = document.getElementById("s_pass").value.trim(); const role = document.getElementById("s_role").value;
+    const assignedSubj = (document.getElementById("s_subject")?.value || "").trim();
     if (!name || !email || !pass) return alert("Fill all fields.");
 
     // SaaS Throttling Check
@@ -5071,7 +5087,20 @@ window.saveStaff = async () => {
 
         // Step 2: staff profile row (RLS requires the chairman policy added in
         // supabase/2026-10-02_staff_portal_rls.sql; the error is surfaced verbatim otherwise).
-        const { error } = await supabaseClient.from("users").upsert({ id: newStaffId, name, email, role: "staff", staffRole: role, plainPassword: pass, photoUrl: photoUrl, schoolId: currentSchoolId, status: "active", privileges: { attendance: true, marks: true, syllabus: true, datesheet: true, homework: true, finance: false, notices: false, admissions: false, certs: false, exams: false, settings: false, view_finance: false, delete: false } });
+        const staffPayload = { 
+            id: newStaffId, 
+            name, 
+            email, 
+            role: "staff", 
+            staffRole: role, 
+            subject: assignedSubj || "", 
+            plainPassword: pass, 
+            photoUrl: photoUrl, 
+            schoolId: currentSchoolId, 
+            status: "active", 
+            privileges: { attendance: true, marks: true, syllabus: true, datesheet: true, homework: true, finance: false, notices: false, admissions: false, certs: false, exams: false, settings: false, view_finance: false, delete: false } 
+        };
+        const { error } = await supabaseClient.from("users").upsert(staffPayload);
         if (error) throw new Error("Staff profile could not be saved (" + error.message + ").");
         
         if (role === "HOD" && institutionIsCollege()) {
@@ -5087,7 +5116,12 @@ window.saveStaff = async () => {
             }
         }
         
-        alert("Staff created successfully!"); document.getElementById("s_name").value = ""; document.getElementById("s_email").value = ""; document.getElementById("s_pass").value = ""; loadStaff();
+        alert("Staff created successfully!"); 
+        document.getElementById("s_name").value = ""; 
+        document.getElementById("s_email").value = ""; 
+        document.getElementById("s_pass").value = ""; 
+        if (document.getElementById("s_subject")) document.getElementById("s_subject").value = "";
+        loadStaff();
     } catch (e) { alert("Error: " + e.message); } finally { await staffAuthClient.auth.signOut().catch(() => { }); }
 };
 
@@ -5182,6 +5216,11 @@ window.editStaff = async (id) => {
     if (roleSelect) {
         roleSelect.value = st.staffRole || "Teacher";
     }
+    const editSubjectEl = document.getElementById("edit_s_subject");
+    if (editSubjectEl) editSubjectEl.value = st.subject || "";
+    if (window.handleStaffRoleChange) {
+        window.handleStaffRoleChange(st.staffRole || "Teacher", "edit_s_dept_group", "edit_s_subject_group");
+    }
 
     if (institutionIsCollege()) {
         const { data: depts } = await supabaseClient.from("departments").select("id, name, code").eq("schoolId", currentSchoolId);
@@ -5192,7 +5231,7 @@ window.editStaff = async (id) => {
 
         if (st.staffRole === "HOD") {
             document.getElementById("edit_s_dept_group").style.display = "block";
-            const { data: assign } = await supabaseClient.from("staff_assignments").select("departmentId").eq("userId", id).maybeSingle();
+            const { data: assign } = await supabaseClient.from("staff_assignments").select("departmentId").eq("userId", id).eq("schoolId", currentSchoolId).maybeSingle();
             if (assign && assign.departmentId) {
                 eDept.value = assign.departmentId;
             }
@@ -5245,18 +5284,27 @@ window.saveStaffEdits = async () => {
         delete: document.getElementById("priv_delete").checked
     };
     try {
-        const updatePayload = { schoolName, name, email, staffRole: r, privileges: privs, updatedAt: new Date().toISOString() };
+        const assignedSubj = (document.getElementById("edit_s_subject")?.value || "").trim();
+        const updatePayload = { 
+            schoolName, 
+            name, 
+            email, 
+            staffRole: r, 
+            subject: assignedSubj,
+            privileges: privs, 
+            updatedAt: new Date().toISOString() 
+        };
         if (p) updatePayload.plainPassword = p;
-        const { error } = await supabaseClient.from("users").update(updatePayload).eq("id", currentEditStaffId);
+        const { error } = await supabaseClient.from("users").update(updatePayload).eq("id", currentEditStaffId).eq("schoolId", currentSchoolId);
         if (error) throw error;
 
         // Update HOD department if applicable
         if (institutionIsCollege() && r === "HOD") {
             const deptId = document.getElementById("edit_s_dept").value;
             if (deptId) {
-                const { data: existing } = await supabaseClient.from("staff_assignments").select("id").eq("userId", currentEditStaffId).maybeSingle();
+                const { data: existing } = await supabaseClient.from("staff_assignments").select("id").eq("userId", currentEditStaffId).eq("schoolId", currentSchoolId).maybeSingle();
                 if (existing) {
-                    await supabaseClient.from("staff_assignments").update({ departmentId: deptId }).eq("id", existing.id);
+                    await supabaseClient.from("staff_assignments").update({ departmentId: deptId }).eq("id", existing.id).eq("schoolId", currentSchoolId);
                 } else {
                     await supabaseClient.from("staff_assignments").insert({
                         userId: currentEditStaffId,
@@ -5267,7 +5315,7 @@ window.saveStaffEdits = async () => {
                 }
             }
         } else if (institutionIsCollege()) {
-            await supabaseClient.from("staff_assignments").delete().eq("userId", currentEditStaffId);
+            await supabaseClient.from("staff_assignments").delete().eq("userId", currentEditStaffId).eq("schoolId", currentSchoolId);
         }
 
         alert("Staff details updated successfully!"); 
@@ -6710,6 +6758,7 @@ window.paAssignDeptHod = async (deptId, staffId) => {
                 roleId: 'hod'
             });
             if (error) throw error;
+            await supabaseClient.from('users').update({ staffRole: 'HOD' }).eq('id', staffId).eq('schoolId', currentSchoolId);
             alert("HOD assigned successfully to department!");
         } else {
             alert("HOD assignment removed.");
@@ -7113,10 +7162,10 @@ async function loadMyDepartment() {
     if (!ov || !window.staffDeptIds.length) { if (ov) ov.innerHTML = '<div style="color:#64748b;padding:12px;">No department assigned.</div>'; return; }
     const [dRes, pRes, sRes, uRes, asRes] = await Promise.all([
         supabaseClient.from('departments').select('*').eq('schoolId', currentSchoolId),
-        supabaseClient.from('programs').select('*').in('departmentId', window.staffDeptIds),
-        supabaseClient.from('students').select('id, name, rollNo, class, programId, levelId, status, departmentId').in('departmentId', window.staffDeptIds).eq('schoolId', currentSchoolId),
-        supabaseClient.from('users').select('id, name, staffRole, email').eq('schoolId', currentSchoolId).eq('role', 'staff'),
-        supabaseClient.from('staff_assignments').select('*').in('departmentId', window.staffDeptIds)
+        supabaseClient.from('programs').select('*').in('departmentId', window.staffDeptIds).eq('schoolId', currentSchoolId),
+        supabaseClient.from('students').select('id, name, rollNo, rollCode, regNo, class, programId, levelId, status, departmentId, data').in('departmentId', window.staffDeptIds).eq('schoolId', currentSchoolId),
+        supabaseClient.from('users').select('id, name, staffRole, email, subject').eq('schoolId', currentSchoolId).eq('role', 'staff'),
+        supabaseClient.from('staff_assignments').select('*').in('departmentId', window.staffDeptIds).eq('schoolId', currentSchoolId)
     ]);
     const depts = (dRes.data || []).filter(d => window.staffDeptIds.includes(d.id));
     const progs = pRes.data || [];
@@ -7382,9 +7431,9 @@ window.exportSubjectBatchList = () => {
         </style>
     </head>
     <body onload="window.print()">
-        <h2>${document.getElementById('brand-header-title')?.innerText || 'College Roster'}</h2>
+        <h2>${document.getElementById('brand-header-title')?.innerText || document.getElementById('staff-school-name')?.innerText || 'College Roster'}</h2>
         <h4>Subject Batch: ${subTitle} (Cross-Major Enrolled Students)</h4>
-        <p style="font-size:12px;color:#555;">Teacher / Faculty | Date: ${new Date().toLocaleDateString('en-IN')} | Total Enrolled: ${students.length}</p>
+        <p style="font-size:12px;color:#555;">Teacher: ${staffEsc(currentStaffDoc?.name || 'Faculty')} | Subject: ${staffEsc(subTitle)} | Date: ${new Date().toLocaleDateString('en-IN')} | Total Enrolled: ${students.length}</p>
         <table>
             <thead>
                 <tr>
