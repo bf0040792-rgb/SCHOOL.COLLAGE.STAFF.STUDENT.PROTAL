@@ -2154,7 +2154,7 @@ window.loadStudentSubjectsView = async () => {
 
     try {
         if (currentStudentUser.id && currentSchoolId) {
-            const { data: fresh } = await supabaseClient.from('students').select('*').eq('id', currentStudentUser.id).maybeSingle();
+            const { data: fresh } = await supabaseClient.from('students').select('*').eq('id', currentStudentUser.id).eq('schoolId', currentSchoolId).maybeSingle();
             if (fresh) currentStudentUser = { ...currentStudentUser, ...fresh, data: { ...(currentStudentUser.data || {}), ...(fresh.data || {}) } };
         }
     } catch (e) {
@@ -2169,16 +2169,87 @@ window.loadStudentSubjectsView = async () => {
         majorEl.value = currentStudentUser.majorSubject || stData.majorSubject || currentStudentUser.class || "Major Degree Program";
     }
 
-    $('stu_nep_minor') && ($('stu_nep_minor').value = nep.minor || stData.minorSubject || "");
-    $('stu_nep_mdc') && ($('stu_nep_mdc').value = nep.mdc || stData.mdcSubject || "");
-    $('stu_nep_skill') && ($('stu_nep_skill').value = nep.skill || stData.skillSubject || "");
-    $('stu_nep_health') && ($('stu_nep_health').value = nep.healthWellness || stData.healthWellness || "");
-    $('stu_nep_evs') && ($('stu_nep_evs').value = nep.evs || stData.evsSubject || "Environmental Studies (EVS)");
-    $('stu_nep_comm') && ($('stu_nep_comm').value = nep.communication || stData.commSubject || "");
+    // Determine student's semester
+    const rawClass = String(currentStudentUser.class || stData.semester || '1st Semester').trim();
+    let stuSemester = "1st Semester";
+    if (rawClass.includes("2")) stuSemester = "2nd Semester";
+    else if (rawClass.includes("3")) stuSemester = "3rd Semester";
+    else if (rawClass.includes("4")) stuSemester = "4th Semester";
+    else if (rawClass.includes("5")) stuSemester = "5th Semester";
+    else if (rawClass.includes("6")) stuSemester = "6th Semester";
+    else if (rawClass.includes("7")) stuSemester = "7th Semester";
+    else if (rawClass.includes("8")) stuSemester = "8th Semester";
+
+    // Fetch dynamic college subjects created by Admin for this college and semester
+    let collegeSubjects = [];
+    let enrolledCounts = {};
+    try {
+        const [csRes, stuRes] = await Promise.all([
+            supabaseClient.from('college_subjects').select('*').eq('schoolId', currentSchoolId).eq('status', 'active'),
+            supabaseClient.from('students').select('id, data').eq('schoolId', currentSchoolId)
+        ]);
+        collegeSubjects = csRes.data || [];
+        
+        (stuRes.data || []).forEach(st => {
+            const d = st.data || {};
+            const n = d.nepSubjects || {};
+            if (n.status === 'approved') {
+                [n.minor, n.mdc, n.skill, n.healthWellness, n.evs, n.communication].filter(Boolean).forEach(sName => {
+                    enrolledCounts[sName] = (enrolledCounts[sName] || 0) + 1;
+                });
+            }
+        });
+    } catch (err) {
+        console.warn("Could not load college_subjects:", err);
+    }
+
+    // Helper to populate select with available subjects & live seat counter
+    const populateSelect = (selectId, catName, defaultLabel, currentVal) => {
+        const el = $(selectId);
+        if (!el) return;
+        
+        let matching = collegeSubjects.filter(cs => {
+            const catMatch = (cs.category === catName || (catName === 'Skill Enhancement Course (SEC)' && cs.category.includes('Skill')));
+            const semMatch = (!cs.semester || cs.semester === 'All Semesters' || cs.semester === stuSemester);
+            return catMatch && semMatch;
+        });
+
+        // Fallback default options if Admin hasn't created any for this category yet
+        if (!matching.length) {
+            matching = collegeSubjects.filter(cs => cs.category === catName || (catName === 'Skill Enhancement Course (SEC)' && cs.category.includes('Skill')));
+        }
+
+        let html = `<option value="">-- ${defaultLabel} --</option>`;
+        matching.forEach(s => {
+            const enrolled = enrolledCounts[s.name] || 0;
+            const totalSeats = s.seats || 50;
+            const available = Math.max(0, totalSeats - enrolled);
+            const isFull = (available <= 0 && s.name !== currentVal);
+            const selected = (s.name === currentVal) ? 'selected' : '';
+            const seatText = isFull ? ' [SEATS FULL]' : ` (${available} seats left)`;
+            html += `<option value="${s.name}" ${selected} ${isFull ? 'disabled style="color:#ef4444;"' : ''}>${s.name}${seatText}</option>`;
+        });
+
+        // If student had a previously saved custom value not in matching, keep it
+        if (currentVal && !matching.some(m => m.name === currentVal)) {
+            html += `<option value="${currentVal}" selected>${currentVal} (Previously Selected)</option>`;
+        }
+
+        el.innerHTML = html;
+    };
+
+    populateSelect('stu_nep_minor', 'Minor Course', 'Select Minor Course', nep.minor || stData.minorSubject || "");
+    populateSelect('stu_nep_mdc', 'Multidisciplinary Course (MDC)', 'Select MDC Course', nep.mdc || stData.mdcSubject || "");
+    populateSelect('stu_nep_skill', 'Skill Enhancement Course (SEC)', 'Select Skill (SEC) Course', nep.skill || stData.skillSubject || "");
+    populateSelect('stu_nep_health', 'Health & Wellness', 'Select Health & Wellness Course', nep.healthWellness || stData.healthWellness || "");
+    populateSelect('stu_nep_evs', 'Environmental Studies (EVS)', 'Select EVS Course', nep.evs || stData.evsSubject || "Environmental Studies (EVS)");
+    populateSelect('stu_nep_comm', 'Communication Skills', 'Select Communication Course', nep.communication || stData.commSubject || "");
 
     const badge = $('stu-nep-status-badge');
     const lockedNotice = $('stu-nep-locked-notice');
     const pendingNotice = $('stu-nep-pending-notice');
+    const rejectedNotice = $('stu-nep-rejected-notice');
+    const rejectedText = $('stu-nep-rejected-text');
     const submitBtn = $('stu_nep_submit_btn');
 
     const status = nep.status || (stData.minorSubject && stData.skillSubject ? 'approved' : 'not_submitted');
@@ -2191,10 +2262,11 @@ window.loadStudentSubjectsView = async () => {
         }
         if (lockedNotice) lockedNotice.style.display = "block";
         if (pendingNotice) pendingNotice.style.display = "none";
+        if (rejectedNotice) rejectedNotice.style.display = "none";
         if (submitBtn) submitBtn.style.display = "none";
         ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
             const el = $(id);
-            if (el) { el.readOnly = true; el.classList.add('bg-gray-50', 'cursor-not-allowed'); }
+            if (el) { el.disabled = true; el.classList.add('bg-gray-50', 'cursor-not-allowed'); }
         });
     } else if (status === 'pending') {
         if (badge) {
@@ -2204,13 +2276,44 @@ window.loadStudentSubjectsView = async () => {
         }
         if (lockedNotice) lockedNotice.style.display = "none";
         if (pendingNotice) pendingNotice.style.display = "block";
+        if (rejectedNotice) rejectedNotice.style.display = "none";
         if (submitBtn) {
             submitBtn.style.display = "inline-flex";
-            submitBtn.innerHTML = "<i class='fas fa-sync'></i> Update Submitted Choices";
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = "0.7";
+            submitBtn.style.cursor = "not-allowed";
+            submitBtn.innerHTML = "<i class='fas fa-lock'></i> Request Submitted (Pending Approval)";
         }
+        // Anti-spam lock: disable all inputs while pending
         ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
             const el = $(id);
-            if (el) { el.readOnly = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
+            if (el) { el.disabled = true; el.classList.add('bg-gray-50', 'cursor-not-allowed'); }
+        });
+    } else if (status === 'rejected') {
+        if (badge) {
+            badge.innerText = "🔴 Rejected (Please Re-select)";
+            badge.style.background = "#fee2e2";
+            badge.style.color = "#991b1b";
+        }
+        if (lockedNotice) lockedNotice.style.display = "none";
+        if (pendingNotice) pendingNotice.style.display = "none";
+        if (rejectedNotice) {
+            rejectedNotice.style.display = "block";
+            if (rejectedText && nep.rejectionReason) {
+                rejectedText.innerText = `Rejection Reason: ${nep.rejectionReason}. Please re-select from available courses below and re-submit.`;
+            }
+        }
+        if (submitBtn) {
+            submitBtn.style.display = "inline-flex";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.style.cursor = "pointer";
+            submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Re-Submit Subject Choices";
+        }
+        // Unlock inputs so student can choose available subjects
+        ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
+            const el = $(id);
+            if (el) { el.disabled = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
         });
     } else {
         if (badge) {
@@ -2220,13 +2323,17 @@ window.loadStudentSubjectsView = async () => {
         }
         if (lockedNotice) lockedNotice.style.display = "none";
         if (pendingNotice) pendingNotice.style.display = "none";
+        if (rejectedNotice) rejectedNotice.style.display = "none";
         if (submitBtn) {
             submitBtn.style.display = "inline-flex";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.style.cursor = "pointer";
             submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i> Submit Subject Choices for Approval";
         }
         ['stu_nep_minor', 'stu_nep_mdc', 'stu_nep_skill', 'stu_nep_health', 'stu_nep_evs', 'stu_nep_comm'].forEach(id => {
             const el = $(id);
-            if (el) { el.readOnly = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
+            if (el) { el.disabled = false; el.classList.remove('bg-gray-50', 'cursor-not-allowed'); }
         });
     }
 };

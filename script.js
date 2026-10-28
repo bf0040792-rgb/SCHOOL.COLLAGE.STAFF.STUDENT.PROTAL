@@ -319,6 +319,13 @@ window.switchTab = (targetId) => {
     if (targetId === 'tab-export-records') window.renderStudentExportRecords();
     if (targetId === 'tab-staff') loadStaff();
     if (targetId === 'tab-finance') loadTransactions();
+    if (targetId === 'tab-minor-subjects') {
+        window.loadCollegeSubjects?.();
+        window.loadNepApprovalsDesk?.();
+    }
+    if (targetId === 'tab-departments' || targetId === 'tab-programs') {
+        if (typeof paLoadCache === 'function') paLoadCache().then(() => paRenderAll());
+    }
     // Refresh inbox/sent when opening the Communication Hub
     if (targetId === 'tab-mailbox') {
         loadInbox(); loadSentMail();
@@ -5128,10 +5135,21 @@ window.saveStaff = async () => {
 async function loadStaff() {
     try {
         if (institutionIsCollege()) {
-            const { data: depts } = await supabaseClient.from("departments").select("id, name, code").eq("schoolId", currentSchoolId);
+            const [deptRes, subjRes] = await Promise.all([
+                supabaseClient.from("departments").select("id, name, code").eq("schoolId", currentSchoolId),
+                supabaseClient.from("college_subjects").select("id, name, code, category").eq("schoolId", currentSchoolId).eq("status", "active")
+            ]);
             let sDept = document.getElementById("s_dept");
-            if (sDept) {
-                sDept.innerHTML = "<option value=\"\">-- Select --</option>" + (depts || []).map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join("");
+            let editDept = document.getElementById("edit_s_dept");
+            const depts = deptRes.data || [];
+            const deptOpts = "<option value=\"\">-- Select --</option>" + depts.map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join("");
+            if (sDept) sDept.innerHTML = deptOpts;
+            if (editDept) editDept.innerHTML = deptOpts;
+
+            const cSubjs = subjRes.data || [];
+            const dl = document.getElementById("collegeSubjectsDatalist");
+            if (dl) {
+                dl.innerHTML = cSubjs.map(s => `<option value="${staffEsc(s.name)}">${staffEsc(s.category)}${s.code ? ' (' + staffEsc(s.code) + ')' : ''}</option>`).join('');
             }
         }
         const { data: staffRows, error } = await supabaseClient.from("users").select("*").eq("schoolId", currentSchoolId).eq("role", "staff");
@@ -6619,7 +6637,7 @@ window.applyInstitutionMode = async () => {
     }
 
     const college = institutionIsCollege();
-    ['departments', 'programs', 'sessions', 'sections'].forEach(k => {
+    ['departments', 'programs', 'minor-subjects', 'sessions', 'sections'].forEach(k => {
         const el = document.getElementById('pa-menu-' + k);
         if (el) el.style.display = college ? '' : 'none';
         const sideEl = document.getElementById('side-menu-' + k);
@@ -6637,7 +6655,12 @@ window.applyInstitutionMode = async () => {
     });
 
     if (typeof renderClassFilters === 'function') renderClassFilters();
-    if (college) { await paLoadCache(); paRenderAll(); }
+    if (college) { 
+        await paLoadCache(); 
+        paRenderAll(); 
+        window.loadCollegeSubjects?.(); 
+        window.loadNepApprovalsDesk?.(); 
+    }
 };
 
 async function paLoadCache() {
@@ -6670,7 +6693,10 @@ function paRenderAll() {
 
     const db = document.getElementById('pa-dept-body');
     if (db) db.innerHTML = phaseACache.departments.length ? phaseACache.departments.map(d => {
-        const progs = phaseACache.programs.filter(p => p.departmentId === d.id).length;
+        const deptProgs = phaseACache.programs.filter(p => p.departmentId === d.id);
+        const progBadges = deptProgs.length ? deptProgs.map(p => 
+            `<span style="display:inline-block; margin:2px 3px; padding:3px 8px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:600;"><i class="fas fa-graduation-cap"></i> ${staffEsc(p.name)}</span>`
+        ).join('') : '<span style="color:#94a3b8; font-style:italic; font-size:12px;">No programs linked</span>';
         const active = d.status === 'active';
         const hodAssignment = (phaseACache.assignments || []).find(sa => sa.departmentId === d.id && sa.roleId === 'hod');
         const assignedStaffId = hodAssignment ? hodAssignment.userId : '';
@@ -6687,7 +6713,7 @@ function paRenderAll() {
                     ${staffOptions}
                 </select>
             </td>
-            <td style="padding:8px;">${progs}</td>
+            <td style="padding:8px;"><div style="display:flex; flex-wrap:wrap; gap:4px; max-width:420px;">${progBadges}</div></td>
             <td style="padding:8px;">${active ? '<span style="color:#16a34a;font-weight:bold;">Active</span>' : '<span style="color:#dc2626;font-weight:bold;">Inactive</span>'}</td>
             <td style="padding:8px;"><button class="action-btn btn-blue" onclick="window.paSetDepartmentStatus('${d.id}', ${active ? "'inactive'" : "'active'"})">${active ? 'Deactivate' : 'Activate'}</button></td>
         </tr>`;
@@ -7455,16 +7481,183 @@ window.exportSubjectBatchList = () => {
 };
 
 // =============================================================================================
-// ---- ADMIN PORTAL: NEP 2020 SUBJECT APPROVALS DESK ----
+// ---- ADMIN PORTAL: COLLEGE SUBJECTS & NEP 2020 APPROVALS DESK ----
 // =============================================================================================
 
+window.collegeSubjectsList = [];
 window.adminNepPendingStudents = [];
 
-window.openNepSubjectApprovalsModal = async () => {
-    const modal = document.getElementById('admin-nep-approvals-modal');
-    const tbody = document.getElementById('admin-nep-approvals-tbody');
-    if (modal) modal.style.display = 'flex';
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Loading pending NEP subject submissions...</td></tr>';
+// 1. Load College Subjects & Live Enrolled Seats
+window.loadCollegeSubjects = async () => {
+    const tbody = document.getElementById('college-subjects-tbody');
+    const countEl = document.getElementById('cs-count');
+    if (tbody && !window.collegeSubjectsList.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Loading subjects & seats...</td></tr>';
+    }
+
+    try {
+        const [subRes, stuRes] = await Promise.all([
+            supabaseClient.from('college_subjects').select('*').eq('schoolId', currentSchoolId).order('name'),
+            supabaseClient.from('students').select('id, data').eq('schoolId', currentSchoolId)
+        ]);
+
+        if (subRes.error) throw subRes.error;
+
+        const enrolledCounts = {};
+        (stuRes.data || []).forEach(st => {
+            const d = st.data || {};
+            const n = d.nepSubjects || {};
+            if (n.status === 'approved') {
+                [n.minor, n.mdc, n.skill, n.healthWellness, n.evs, n.communication].filter(Boolean).forEach(sName => {
+                    enrolledCounts[sName] = (enrolledCounts[sName] || 0) + 1;
+                });
+            }
+        });
+
+        window.collegeSubjectsList = (subRes.data || []).map(s => {
+            const enrolled = enrolledCounts[s.name] || 0;
+            const total = s.seats || 50;
+            const available = Math.max(0, total - enrolled);
+            return { ...s, enrolled, available };
+        });
+
+        if (countEl) countEl.innerText = window.collegeSubjectsList.length;
+
+        // Populate datalist for staff assignment auto-suggest
+        const dl = document.getElementById('collegeSubjectsDatalist');
+        if (dl) {
+            dl.innerHTML = window.collegeSubjectsList.map(s => 
+                `<option value="${staffEsc(s.name)}">${staffEsc(s.category)} [${staffEsc(s.semester || 'All Semesters')}]</option>`
+            ).join('');
+        }
+
+        window.renderCollegeSubjectsTable();
+    } catch (e) {
+        console.error("loadCollegeSubjects error:", e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Error loading subjects: ${staffEsc(e.message)}</td></tr>`;
+    }
+};
+
+// 2. Render College Subjects Table with Semester & Category Filters
+window.renderCollegeSubjectsTable = () => {
+    const tbody = document.getElementById('college-subjects-tbody');
+    const semFilter = document.getElementById('cs-filter-sem')?.value;
+    const catFilter = document.getElementById('cs-filter-cat')?.value;
+    if (!tbody) return;
+
+    const filtered = window.collegeSubjectsList.filter(s => {
+        if (semFilter && s.semester !== semFilter && s.semester !== 'All Semesters') return false;
+        if (catFilter && s.category !== catFilter) return false;
+        return true;
+    });
+
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#64748b;">No subjects found for the selected filter. Create new subjects above.</td></tr>';
+        return;
+    }
+
+    const catColors = {
+        'Minor Course': { bg: 'rgba(59,130,246,0.1)', color: '#2563eb' },
+        'Multidisciplinary Course (MDC)': { bg: 'rgba(13,148,136,0.1)', color: '#0d9488' },
+        'Skill Enhancement Course (SEC)': { bg: 'rgba(124,58,237,0.1)', color: '#7c3aed' },
+        'Health & Wellness': { bg: 'rgba(234,88,12,0.1)', color: '#ea580c' },
+        'Environmental Studies (EVS)': { bg: 'rgba(22,163,74,0.1)', color: '#16a34a' },
+        'Communication Skills': { bg: 'rgba(217,70,239,0.1)', color: '#c026d3' }
+    };
+
+    tbody.innerHTML = filtered.map(s => {
+        const style = catColors[s.category] || { bg: '#f1f5f9', color: '#475569' };
+        const isFull = (s.available <= 0);
+        const statusBadge = isFull 
+            ? '<span style="background:rgba(239,68,68,0.15);color:#dc2626;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;"><i class="fas fa-ban"></i> SEATS FULL</span>'
+            : '<span style="background:rgba(22,163,74,0.15);color:#16a34a;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;"><i class="fas fa-check-circle"></i> Active</span>';
+
+        return `<tr style="border-bottom:1px solid #e2e8f0;">
+            <td><span style="background:${style.bg};color:${style.color};padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">${staffEsc(s.category)}</span></td>
+            <td><strong>${staffEsc(s.name)}</strong></td>
+            <td style="color:#64748b;font-size:11px;">${staffEsc(s.code || '—')}</td>
+            <td><span style="background:#e0e7ff;color:#4338ca;padding:2px 7px;border-radius:4px;font-weight:600;font-size:11px;">${staffEsc(s.semester || 'All Semesters')}</span></td>
+            <td style="font-weight:600;">${s.seats || 50}</td>
+            <td style="font-weight:700;color:#2563eb;">${s.enrolled || 0}</td>
+            <td style="font-weight:700;color:${isFull ? '#dc2626' : '#16a34a'};">${s.available}</td>
+            <td>${statusBadge}</td>
+            <td>
+                <button class="action-btn btn-red" style="background:#ef4444;color:#fff;padding:4px 8px;font-size:11px;" onclick="window.deleteCollegeSubject('${s.id}', '${staffEsc(s.name)}')"><i class="fas fa-trash"></i> Delete</button>
+            </td>
+        </tr>`;
+    }).join('');
+};
+
+// 3. Save New College Subject (Semester-Wise with Seat Limit)
+window.saveCollegeSubject = async () => {
+    const category = document.getElementById('cs_category')?.value;
+    const name = document.getElementById('cs_name')?.value?.trim();
+    const code = document.getElementById('cs_code')?.value?.trim();
+    const semester = document.getElementById('cs_semester')?.value || '1st Semester';
+    const seats = parseInt(document.getElementById('cs_seats')?.value) || 50;
+
+    if (!name) {
+        alert("Please enter Subject Name (e.g. Web Designing)");
+        document.getElementById('cs_name')?.focus();
+        return;
+    }
+
+    try {
+        const { error } = await supabaseClient.from('college_subjects').insert([{
+            schoolId: currentSchoolId,
+            name,
+            code: code || null,
+            category,
+            semester,
+            seats,
+            status: 'active',
+            metadata: {}
+        }]);
+
+        if (error) throw error;
+
+        // Clear input fields
+        const nameEl = document.getElementById('cs_name');
+        const codeEl = document.getElementById('cs_code');
+        if (nameEl) nameEl.value = '';
+        if (codeEl) codeEl.value = '';
+
+        await window.loadCollegeSubjects();
+        alert(`Subject "${name}" (${category} - ${semester}) created successfully with ${seats} seats capacity!`);
+    } catch (e) {
+        console.error("saveCollegeSubject error:", e);
+        alert("Failed to save subject: " + e.message);
+    }
+};
+
+// 4. Delete College Subject
+window.deleteCollegeSubject = async (id, name) => {
+    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+    try {
+        const { error } = await supabaseClient
+            .from('college_subjects')
+            .delete()
+            .eq('id', id)
+            .eq('schoolId', currentSchoolId);
+
+        if (error) throw error;
+        await window.loadCollegeSubjects();
+    } catch (e) {
+        console.error("deleteCollegeSubject error:", e);
+        alert("Failed to delete subject: " + e.message);
+    }
+};
+
+// 5. Open / Load NEP Approvals Desk
+window.loadNepApprovalsDesk = async () => {
+    const tbodyMain = document.getElementById('admin-nep-approvals-tbody-main');
+    const tbodyModal = document.getElementById('admin-nep-approvals-tbody');
+    const countEl = document.getElementById('nep-approvals-count');
+
+    if (tbodyMain && !window.adminNepPendingStudents.length) {
+        tbodyMain.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Loading student subject choices...</td></tr>';
+    }
 
     try {
         const { data: students, error } = await supabaseClient
@@ -7478,39 +7671,53 @@ window.openNepSubjectApprovalsModal = async () => {
         window.adminNepPendingStudents = students || [];
         window.renderNepApprovalsTable();
     } catch (e) {
-        console.error("openNepSubjectApprovalsModal error:", e);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Error: ${staffEsc(e.message)}</td></tr>`;
+        console.error("loadNepApprovalsDesk error:", e);
+        const errMsg = `<tr><td colspan="10" style="text-align:center;padding:20px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Error: ${staffEsc(e.message)}</td></tr>`;
+        if (tbodyMain) tbodyMain.innerHTML = errMsg;
+        if (tbodyModal) tbodyModal.innerHTML = errMsg;
     }
 };
 
-window.renderNepApprovalsTable = () => {
-    const tbody = document.getElementById('admin-nep-approvals-tbody');
-    if (!tbody) return;
+window.openNepSubjectApprovalsModal = async () => {
+    const modal = document.getElementById('admin-nep-approvals-modal');
+    if (modal) modal.style.display = 'flex';
+    await window.loadNepApprovalsDesk();
+};
 
-    // Filter students who have nepSubjects or subject selections
-    const list = window.adminNepPendingStudents.filter(s => {
+// 6. Render NEP Approvals Table (Syncs to both Tab View and Modal View)
+window.renderNepApprovalsTable = (filteredList) => {
+    const tbodyMain = document.getElementById('admin-nep-approvals-tbody-main');
+    const tbodyModal = document.getElementById('admin-nep-approvals-tbody');
+    const countEl = document.getElementById('nep-approvals-count');
+
+    const rawList = filteredList || window.adminNepPendingStudents.filter(s => {
         const d = s.data || {};
         return d.nepSubjects || d.minorSubject || d.mdcSubject || d.skillSubject;
     });
 
-    // Sort so 'pending' is at top
-    list.sort((a, b) => {
+    const list = [...rawList].sort((a, b) => {
         const sa = (a.data?.nepSubjects?.status || 'none') === 'pending' ? 0 : 1;
         const sb = (b.data?.nepSubjects?.status || 'none') === 'pending' ? 0 : 1;
         return sa - sb;
     });
 
+    if (countEl) countEl.innerText = list.length;
+
+    const noDataRow = '<tr><td colspan="10" style="text-align:center;padding:24px;color:#64748b;">No student subject selections found yet. Students can submit from Student Portal > NEP Subjects.</td></tr>';
+
     if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#64748b;">No student subject selections found yet. Students can submit from Student Portal > NEP Subjects.</td></tr>';
+        if (tbodyMain) tbodyMain.innerHTML = noDataRow;
+        if (tbodyModal) tbodyModal.innerHTML = noDataRow;
         return;
     }
 
-    tbody.innerHTML = list.map(s => {
+    const rowsHtml = list.map(s => {
         const d = s.data || {};
         const nep = d.nepSubjects || {};
         const roll = s.rollCode || s.rollNo || s.regNo || d.rollNo || '—';
         const prog = (phaseACache.programs || []).find(p => p.id === s.programId);
         const major = (prog && prog.name) || d.majorSubject || nep.major || '—';
+        const sem = s.class || d.semester || 'Sem 1';
         const minor = nep.minor || d.minorSubject || '—';
         const mdc = nep.mdc || d.mdcSubject || '—';
         const skill = nep.skill || d.skillSubject || '—';
@@ -7519,37 +7726,58 @@ window.renderNepApprovalsTable = () => {
 
         const isPending = (nep.status === 'pending');
         const isApproved = (nep.status === 'approved');
+        const isRejected = (nep.status === 'rejected');
 
         let statusBadge = '<span style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">Draft / Not Submitted</span>';
         if (isPending) {
             statusBadge = '<span style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;"><i class="fas fa-clock"></i> Pending Approval</span>';
         } else if (isApproved) {
             statusBadge = '<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;"><i class="fas fa-check-circle"></i> Approved</span>';
+        } else if (isRejected) {
+            statusBadge = `<span style="background:rgba(239,68,68,0.15);color:#ef4444;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;" title="${staffEsc(nep.rejectionReason || '')}"><i class="fas fa-times-circle"></i> Rejected</span>`;
         }
 
         let actionBtn = '';
         if (isPending) {
-            actionBtn = `<button class="action-btn" style="background:#10b981;color:#fff;padding:4px 10px;font-size:11px;font-weight:700;" onclick="window.approveStudentNepSubjects('${s.id}')"><i class="fas fa-check"></i> Approve</button>`;
+            actionBtn = `
+                <div style="display:flex; gap:4px; justify-content:center;">
+                    <button class="action-btn" style="background:#10b981;color:#fff;padding:4px 8px;font-size:11px;font-weight:700;" onclick="window.approveStudentNepSubjects('${s.id}')"><i class="fas fa-check"></i> Approve</button>
+                    <button class="action-btn btn-red" style="background:#ef4444;color:#fff;padding:4px 8px;font-size:11px;font-weight:700;" onclick="window.rejectStudentNepSubjects('${s.id}')"><i class="fas fa-times"></i> Reject</button>
+                </div>`;
         } else if (isApproved) {
-            actionBtn = `<button class="action-btn" style="background:#f1f5f9;color:#64748b;padding:4px 8px;font-size:11px;" onclick="window.approveStudentNepSubjects('${s.id}', true)"><i class="fas fa-undo"></i> Reset</button>`;
+            actionBtn = `
+                <div style="display:flex; gap:4px; justify-content:center;">
+                    <button class="action-btn" style="background:#f1f5f9;color:#64748b;padding:4px 8px;font-size:11px;" onclick="window.approveStudentNepSubjects('${s.id}', true)"><i class="fas fa-undo"></i> Reset</button>
+                    <button class="action-btn btn-red" style="background:#fee2e2;color:#dc2626;padding:4px 8px;font-size:11px;" onclick="window.rejectStudentNepSubjects('${s.id}')"><i class="fas fa-times"></i> Reject</button>
+                </div>`;
+        } else if (isRejected) {
+            actionBtn = `
+                <div style="display:flex; gap:4px; justify-content:center; align-items:center;">
+                    <button class="action-btn" style="background:#10b981;color:#fff;padding:4px 8px;font-size:11px;font-weight:700;" onclick="window.approveStudentNepSubjects('${s.id}')"><i class="fas fa-check"></i> Re-Approve</button>
+                </div>`;
         } else {
             actionBtn = `<span style="color:#94a3b8;font-size:11px;">—</span>`;
         }
 
-        return `<tr>
+        return `<tr style="border-bottom:1px solid #e2e8f0;">
             <td style="font-weight:700;color:#1e3a8a;">${staffEsc(roll)}</td>
             <td style="font-weight:600;color:#0f172a;">${staffEsc(s.name)}</td>
-            <td style="font-size:11px;color:#334155;max-width:180px;white-space:normal;">${staffEsc(major)}</td>
+            <td style="font-size:11px;color:#334155;max-width:180px;white-space:normal;"><i class="fas fa-graduation-cap text-indigo-500"></i> ${staffEsc(major)}</td>
+            <td style="font-size:11px;color:#64748b;white-space:nowrap;">${staffEsc(sem)}</td>
             <td style="font-size:12px;color:#0369a1;font-weight:600;">${staffEsc(minor)}</td>
             <td style="font-size:12px;color:#0d9488;font-weight:600;">${staffEsc(mdc)}</td>
             <td style="font-size:12px;color:#7c3aed;font-weight:600;">${staffEsc(skill)}</td>
             <td style="font-size:11px;color:#64748b;max-width:140px;white-space:normal;">${staffEsc(vaText)}</td>
             <td>${statusBadge}</td>
-            <td>${actionBtn}</td>
+            <td style="text-align:center;">${actionBtn}</td>
         </tr>`;
     }).join('');
+
+    if (tbodyMain) tbodyMain.innerHTML = rowsHtml;
+    if (tbodyModal) tbodyModal.innerHTML = rowsHtml;
 };
 
+// 7. Approve Student NEP Subject Choice
 window.approveStudentNepSubjects = async (studentId, isReset) => {
     const student = window.adminNepPendingStudents.find(s => s.id === studentId);
     if (!student) return;
@@ -7562,6 +7790,8 @@ window.approveStudentNepSubjects = async (studentId, isReset) => {
             delete nep.approvedAt;
         } else {
             nep.approvedAt = new Date().toISOString();
+            delete nep.rejectionReason;
+            delete nep.rejectedAt;
         }
         d.nepSubjects = nep;
 
@@ -7575,12 +7805,52 @@ window.approveStudentNepSubjects = async (studentId, isReset) => {
 
         student.data = d;
         window.renderNepApprovalsTable();
+        window.loadCollegeSubjects();
     } catch (e) {
         console.error("approveStudentNepSubjects error:", e);
         alert("Failed to update status: " + e.message);
     }
 };
 
+// 8. Reject Student NEP Subject Choice with Reason (Unlocks student form for re-selection)
+window.rejectStudentNepSubjects = async (studentId) => {
+    const student = window.adminNepPendingStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    const reason = prompt("Enter Rejection Reason for Student (e.g. 'Seats full in Web Designing - please choose another skill'):", "Seats are full in chosen course. Please select from available subjects.");
+    if (!reason || !reason.trim()) {
+        alert("Rejection cancelled. A reason is required so the student knows which subjects to re-select.");
+        return;
+    }
+
+    try {
+        const d = student.data || {};
+        const nep = d.nepSubjects || {};
+        nep.status = 'rejected';
+        nep.rejectionReason = reason.trim();
+        nep.rejectedAt = new Date().toISOString();
+        delete nep.approvedAt;
+        d.nepSubjects = nep;
+
+        const { error } = await supabaseClient
+            .from('students')
+            .update({ data: d })
+            .eq('id', studentId)
+            .eq('schoolId', currentSchoolId);
+
+        if (error) throw error;
+
+        student.data = d;
+        window.renderNepApprovalsTable();
+        window.loadCollegeSubjects();
+        alert(`Subject choices for "${student.name}" rejected. Reason sent to student portal: "${reason.trim()}"`);
+    } catch (e) {
+        console.error("rejectStudentNepSubjects error:", e);
+        alert("Failed to reject: " + e.message);
+    }
+};
+
+// 9. Bulk Approve All Pending
 window.approveAllPendingNepSubjects = async () => {
     const pending = window.adminNepPendingStudents.filter(s => s.data?.nepSubjects?.status === 'pending');
     if (!pending.length) {
@@ -7596,6 +7866,8 @@ window.approveAllPendingNepSubjects = async () => {
             const nep = d.nepSubjects || {};
             nep.status = 'approved';
             nep.approvedAt = new Date().toISOString();
+            delete nep.rejectionReason;
+            delete nep.rejectedAt;
             d.nepSubjects = nep;
 
             await supabaseClient
@@ -7608,10 +7880,33 @@ window.approveAllPendingNepSubjects = async () => {
         }
         alert(`Successfully approved ${pending.length} student subject choices!`);
         window.renderNepApprovalsTable();
+        window.loadCollegeSubjects();
     } catch (e) {
         console.error("approveAllPendingNepSubjects error:", e);
         alert("Failed during bulk approval: " + e.message);
     }
+};
+
+// 10. Filter Approvals Desk by Query
+window.filterNepApprovals = (query) => {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) {
+        window.renderNepApprovalsTable();
+        return;
+    }
+
+    const filtered = window.adminNepPendingStudents.filter(s => {
+        const d = s.data || {};
+        const nep = d.nepSubjects || {};
+        const prog = (phaseACache.programs || []).find(p => p.id === s.programId);
+        const major = ((prog && prog.name) || d.majorSubject || nep.major || '').toLowerCase();
+        const roll = String(s.rollCode || s.rollNo || s.regNo || d.rollNo || '').toLowerCase();
+        const name = String(s.name || '').toLowerCase();
+        const subs = [nep.minor, nep.mdc, nep.skill, nep.healthWellness, nep.evs, nep.communication].map(x => String(x || '').toLowerCase()).join(' ');
+        return name.includes(q) || roll.includes(q) || major.includes(q) || subs.includes(q);
+    });
+
+    window.renderNepApprovalsTable(filtered);
 };
 
   // ============================== STUDENT PORTAL (MERGED) ======================================
