@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="820" viewBox="0 0 1100 820">
+  <defs>
+    <linearGradient id="schoolHeaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f2557"/>
+      <stop offset="50%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d97706"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="1100" height="820" fill="#e2e8f0"/>
+
+  <!-- Top Design Label Pill -->
+  <rect x="30" y="14" width="440" height="28" rx="6" fill="#1e3a8a"/>
+  <text x="46" y="33" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#ffffff" letter-spacing="1">DESIGN 1: SCHOOL EXAMINATION ADMIT CARD (K-12 PATTERN)</text>
+
+  <!-- Main A4 Sheet Card -->
+  <rect x="30" y="50" width="1040" height="745" rx="10" fill="#ffffff" stroke="#1e3a8a" stroke-width="3"/>
+  <rect x="38" y="58" width="1024" height="729" rx="6" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+
+  <!-- School Header Banner -->
+  <rect x="40" y="60" width="1020" height="112" rx="6" fill="url(#schoolHeaderGrad)"/>
+  <rect x="40" y="166" width="1020" height="6" fill="url(#goldAccent)"/>
+
+  <!-- School Crest Emblem -->
+  <circle cx="106" cy="113" r="38" fill="#ffffff" stroke="#f59e0b" stroke-width="3"/>
+  <circle cx="106" cy="113" r="31" fill="#eff6ff" stroke="#1e3a8a" stroke-width="1.5"/>
+  <text x="106" y="110" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1e3a8a" text-anchor="middle">SPS</text>
+  <text x="106" y="126" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#b45309" text-anchor="middle">ESTD 1998</text>
+
+  <!-- School Name & Subtitle -->
+  <text x="550" y="96" font-family="Georgia, serif" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="1.5">SCHOLARS PUBLIC SENIOR SECONDARY SCHOOL</text>
+  <text x="550" y="118" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#fde68a" text-anchor="middle" letter-spacing="1">AFFILIATED TO BOARD OF SCHOOL EDUCATION • SCHOOL CODE: 40218 • RECOGNIZED K-12 INSTITUTION</text>
+
+  <!-- Admit Card Title Pill -->
+  <rect x="355" y="129" width="390" height="28" rx="14" fill="#ffffff"/>
+  <text x="550" y="148" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e3a8a" text-anchor="middle" letter-spacing="1.5">EXAMINATION ADMIT CARD — SESSION 2026–27</text>
+
+  <!-- QR Code on Header Right -->
+  <rect x="975" y="76" width="66" height="66" rx="6" fill="#ffffff" stroke="#f59e0b" stroke-width="2"/>
+  <rect x="983" y="84" width="16" height="16" fill="#0f172a"/>
+  <rect x="1017" y="84" width="16" height="16" fill="#0f172a"/>
+  <rect x="983" y="118" width="16" height="16" fill="#0f172a"/>
+  <rect x="1003" y="100" width="12" height="12" fill="#1e3a8a"/>
+  <rect x="1019" y="118" width="14" height="14" fill="#0f172a"/>
+  <text x="1008" y="156" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#e2e8f0" text-anchor="middle">VERIFY QR</text>
+
+  <!-- Student Details Box -->
+  <rect x="56" y="186" width="830" height="156" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+
+  <!-- Left Column Details -->
+  <text x="76" y="214" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">STUDENT NAME:</text>
+  <text x="215" y="214" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#0f172a">AARAV SHARMA</text>
+
+  <text x="76" y="244" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">FATHER / PARENTAGE:</text>
+  <text x="215" y="244" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">RAJESH KUMAR SHARMA</text>
+
+  <text x="76" y="274" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">MOTHER'S NAME:</text>
+  <text x="215" y="274" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">SUNITA SHARMA</text>
+
+  <text x="76" y="304" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">DATE OF BIRTH:</text>
+  <text x="215" y="304" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">14-08-2011</text>
+
+  <text x="76" y="330" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">EXAMINATION CENTER:</text>
+  <text x="215" y="330" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e3a8a">MAIN CAMPUS EXAMINATION HALL - BLOCK A</text>
+
+  <!-- Divider Line -->
+  <line x1="485" y1="198" x2="485" y2="330" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- Right Column Details -->
+  <text x="508" y="214" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">ROLL NUMBER:</text>
+  <rect x="645" y="198" width="120" height="24" rx="4" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="705" y="215" font-family="Courier New, monospace" font-size="15" font-weight="bold" fill="#1e3a8a" text-anchor="middle">102408</text>
+
+  <text x="508" y="244" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">CLASS &amp; SECTION:</text>
+  <text x="645" y="244" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#0f172a">Class 10th (Sec A)</text>
+
+  <text x="508" y="274" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">ADMISSION / REG NO:</text>
+  <text x="645" y="274" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">REG/2026/0892</text>
+
+  <text x="508" y="304" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">STUDENT STATUS:</text>
+  <rect x="645" y="290" width="130" height="20" rx="10" fill="#dcfce7"/>
+  <text x="710" y="304" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">REGULAR • ELIGIBLE</text>
+
+  <text x="508" y="330" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748b">EXAMINATION TERM:</text>
+  <text x="645" y="330" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#b45309">FINAL TERM EXAM 2026-27</text>
+
+  <!-- Student Photo Box -->
+  <rect x="904" y="186" width="138" height="156" rx="8" fill="#f8fafc" stroke="#1e3a8a" stroke-width="2"/>
+  <circle cx="973" cy="242" r="28" fill="#cbd5e1"/>
+  <path d="M933,312 C933,280 1013,280 1013,312" fill="#94a3b8"/>
+  <rect x="912" y="318" width="122" height="18" rx="3" fill="#eff6ff"/>
+  <text x="973" y="330" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#1e3a8a" text-anchor="middle">PASSPORT PHOTO</text>
+
+  <!-- Examination DateSheet Section Title -->
+  <rect x="56" y="356" width="986" height="28" rx="5" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="72" y="375" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1e3a8a" letter-spacing="0.8">📅 EXAMINATION DATE-SHEET &amp; SUBJECT SCHEDULE (SCHOOL ROUTINE)</text>
+  <text x="1026" y="375" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#475569" text-anchor="end">Reporting Time: 08:30 AM</text>
+
+  <!-- Schedule Table Header -->
+  <rect x="56" y="390" width="986" height="32" fill="#1e3a8a"/>
+  <text x="90" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">S.NO</text>
+  <text x="205" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">EXAM DATE &amp; DAY</text>
+  <text x="355" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">SUBJECT CODE</text>
+  <text x="555" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">SUBJECT NAME</text>
+  <text x="780" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">EXAM TIMING</text>
+  <text x="955" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">INVIGILATOR SIGN</text>
+
+  <!-- Table Rows (6 Subjects) -->
+  <g font-family="Arial, sans-serif" font-size="12" fill="#1e293b">
+    <!-- Row 1 -->
+    <rect x="56" y="422" width="986" height="30" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="90" y="441" text-anchor="middle" font-weight="bold">01</text>
+    <text x="205" y="441" text-anchor="middle" font-weight="bold">10/03/2027 (Monday)</text>
+    <text x="355" y="441" text-anchor="middle" fill="#1e3a8a" font-weight="bold">ENG-184</text>
+    <text x="445" y="441" font-weight="bold">English Language &amp; Literature</text>
+    <text x="780" y="441" text-anchor="middle">09:00 AM – 12:00 PM</text>
+    <text x="955" y="441" text-anchor="middle" fill="#94a3b8">__________________</text>
+
+    <!-- Row 2 -->
+    <rect x="56" y="452" width="986" height="30" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="90" y="471" text-anchor="middle" font-weight="bold">02</text>
+    <text x="205" y="471" text-anchor="middle" font-weight="bold">13/03/2027 (Thursday)</text>
+    <text x="355" y="471" text-anchor="middle" fill="#1e3a8a" font-weight="bold">MAT-041</text>
+    <text x="445" y="471" font-weight="bold">Mathematics Standard</text>
+    <text x="780" y="471" text-anchor="middle">09:00 AM – 12:00 PM</text>
+    <text x="955" y="471" text-anchor="middle" fill="#94a3b8">__________________</text>
+
+    <!-- Row 3 -->
+    <rect x="56" y="482" width="986" height="30" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="90" y="501" text-anchor="middle" font-weight="bold">03</text>
+    <text x="205" y="501" text-anchor="middle" font-weight="bold">16/03/2027 (Sunday)</text>
+    <text x="355" y="501" text-anchor="middle" fill="#1e3a8a" font-weight="bold">SCI-086</text>
+    <text x="445" y="501" font-weight="bold">Science (Theory &amp; Practical)</text>
+    <text x="780" y="501" text-anchor="middle">09:00 AM – 12:00 PM</text>
+    <text x="955" y="501" text-anchor="middle" fill="#94a3b8">__________________</text>
+
+    <!-- Row 4 -->
+    <rect x="56" y="512" width="986" height="30" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="90" y="531" text-anchor="middle" font-weight="bold">04</text>
+    <text x="205" y="531" text-anchor="middle" font-weight="bold">19/03/2027 (Wednesday)</text>
+    <text x="355" y="531" text-anchor="middle" fill="#1e3a8a" font-weight="bold">SST-087</text>
+    <text x="445" y="531" font-weight="bold">Social Studies (History, Civics &amp; Geo)</text>
+    <text x="780" y="531" text-anchor="middle">09:00 AM – 12:00 PM</text>
+    <text x="955" y="531" text-anchor="middle" fill="#94a3b8">__________________</text>
+
+    <!-- Row 5 -->
+    <rect x="56" y="542" width="986" height="30" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="90" y="561" text-anchor="middle" font-weight="bold">05</text>
+    <text x="205" y="561" text-anchor="middle" font-weight="bold">22/03/2027 (Saturday)</text>
+    <text x="355" y="561" text-anchor="middle" fill="#1e3a8a" font-weight="bold">HIN-002</text>
+    <text x="445" y="561" font-weight="bold">Hindi / Regional Language</text>
+    <text x="780" y="561" text-anchor="middle">09:00 AM – 12:00 PM</text>
+    <text x="955" y="561" text-anchor="middle" fill="#94a3b8">__________________</text>
+
+    <!-- Row 6 -->
+    <rect x="56" y="572" width="986" height="30" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="90" y="591" text-anchor="middle" font-weight="bold">06</text>
+    <text x="205" y="591" text-anchor="middle" font-weight="bold">25/03/2027 (Tuesday)</text>
+    <text x="355" y="591" text-anchor="middle" fill="#1e3a8a" font-weight="bold">CMP-165</text>
+    <text x="445" y="591" font-weight="bold">Computer Applications / IT</text>
+    <text x="780" y="591" text-anchor="middle">09:00 AM – 12:00 PM</text>
+    <text x="955" y="591" text-anchor="middle" fill="#94a3b8">__________________</text>
+  </g>
+
+  <!-- Instructions Box -->
+  <rect x="56" y="616" width="986" height="68" rx="6" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="72" y="635" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#92400e">IMPORTANT INSTRUCTIONS FOR SCHOOL CANDIDATES:</text>
+  <text x="72" y="652" font-family="Arial, sans-serif" font-size="11" fill="#78350f">1. Candidate must carry this printed Admit Card along with valid School ID Card to the Examination Hall at least 30 minutes before start time.</text>
+  <text x="72" y="669" font-family="Arial, sans-serif" font-size="11" fill="#78350f">2. Electronic gadgets, smartwatches, calculators, and written chits are strictly prohibited inside the examination room.</text>
+
+  <!-- Footer Signatures -->
+  <line x1="80" y1="748" x2="270" y2="748" stroke="#334155" stroke-width="1.5"/>
+  <text x="175" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#334155" text-anchor="middle">Student Signature</text>
+
+  <line x1="455" y1="748" x2="645" y2="748" stroke="#334155" stroke-width="1.5"/>
+  <text x="550" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#334155" text-anchor="middle">Exam Controller / Class Teacher</text>
+
+  <!-- Principal Digital Sign & Line -->
+  <path d="M845,735 Q875,705 900,730 T955,718" fill="none" stroke="#1e3a8a" stroke-width="2.5"/>
+  <line x1="815" y1="748" x2="1015" y2="748" stroke="#0f172a" stroke-width="1.5"/>
+  <text x="915" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Principal Signature &amp; Seal</text>
+</svg>

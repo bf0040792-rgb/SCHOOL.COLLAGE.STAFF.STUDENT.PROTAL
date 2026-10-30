@@ -2846,9 +2846,24 @@
                 <div id="tab-admit-cards-module" class="tab-content">
                     <div class="card">
                         <div
-                            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom: 15px;">
-                            <h3 style="margin:0;"><i class="fas fa-id-card-alt"></i> Student Admit Cards</h3>
-                            <div style="display: flex; gap: 10px; align-items: center;">
+                            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: 12px; margin-bottom: 16px;">
+                            <div>
+                                <h3 style="margin:0; display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-id-card-alt" style="color:#2563eb;"></i>
+                                    <span>Student Examination Admit Cards</span>
+                                    <span id="admit-inst-mode-badge" style="font-size:11px; padding:3px 10px; border-radius:999px; background:#eff6ff; color:#1e3a8a; font-weight:700;">Multi-Tenant Auto</span>
+                                </h3>
+                                <p style="margin:4px 0 0; font-size:12px; color:#64748b;">Automatically generates K-12 School Date-Sheet Admit Cards for Schools and NEP-2020 Semester Hall Tickets for Colleges.</p>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <select id="admit_template_mode_select" class="input-premium" style="width: auto; padding: 7px 10px; font-size: 12px; font-weight: 700;" onchange="window.setAdmitTemplateOverride && window.setAdmitTemplateOverride(this.value)" title="Choose Admit Card Template Design">
+                                    <option value="auto">🎯 Auto (By School / College Type)</option>
+                                    <option value="school">🏫 School Admit Card Design (K-12)</option>
+                                    <option value="college">🎓 College NEP-2020 Hall Ticket Design</option>
+                                </select>
+                                <button type="button" class="action-btn" style="background:#0f766e; color:white; padding:6px 12px; font-size:12px;" onclick="window.toggleAdmitDesignGallery && window.toggleAdmitDesignGallery()">
+                                    <i class="fas fa-images"></i> School vs College Design Preview
+                                </button>
                                 <select id="admit_class_select" class="input-premium"
                                     style="width: auto; padding: 8px 10px;" onchange="filterAdmitStudents(this.value)">
                                     <option value="ALL">All Classes</option>
@@ -2870,14 +2885,80 @@
                                 </select>
                                 <input type="text" id="searchAdmitStudentInput" class="input-premium"
                                     placeholder="Search Student..." onkeyup="searchAdmitStudent()"
-                                    style="padding: 8px 10px; width: 200px;">
+                                    style="padding: 8px 10px; width: 185px;">
                                 <button id="bulk-admit-btn" class="action-btn btn-purple"
-                                    style="padding:5px 10px; font-size:12px;"
+                                    style="padding:6px 12px; font-size:12px;"
                                     onclick="window.openBulkActionModal('admit')"><i class="fas fa-file-alt"></i>
                                     Generate Admit Cards</button>
                                 <button id="exam-scheduler-btn" class="action-btn"
-                                    style="background:#d97706; padding:5px 10px; font-size:12px;"
+                                    style="background:#d97706; color:white; padding:6px 12px; font-size:12px;"
                                     onclick="window.openExamScheduler()">📅 Routine Scheduler</button>
+                            </div>
+                        </div>
+
+                        <!-- SCHOOL VS COLLEGE ADMIT CARD VISUAL DESIGN SHOWCASE -->
+                        <div id="admit-design-gallery-box" style="display: block; margin-bottom: 20px; padding: 18px; border-radius: 14px; background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); border: 1px solid #cbd5e1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+                                <div>
+                                    <h4 style="margin:0; font-size:15px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px;">
+                                        <i class="fas fa-check-double" style="color:#10b981;"></i>
+                                        <span>Applied Multi-Tenant Admit Card Templates — School (K-12) &amp; College (NEP-2020)</span>
+                                    </h4>
+                                    <p style="margin:3px 0 0; font-size:12px; color:#475569;">Both approved designs are now active! Schools automatically use <strong>Design 1 (K-12)</strong> and Colleges automatically use <strong>Design 2 (NEP-2020 Hall Ticket)</strong>, or you can click <strong>Apply This Design</strong> on either card below.</p>
+                                </div>
+                                <button type="button" onclick="window.toggleAdmitDesignGallery()" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:5px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                                    Hide Previews
+                                </button>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:18px;">
+                                <!-- Design 1: School Admit Card Image Card -->
+                                <div id="admit-card-showcase-school" style="background:#ffffff; border-radius:12px; border:2px solid #1e3a8a; overflow:hidden; box-shadow:0 4px 14px rgba(30,58,138,0.08);">
+                                    <div style="background:#1e3a8a; color:#ffffff; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                                        <div>
+                                            <div style="font-size:13px; font-weight:800; letter-spacing:0.3px; display:flex; align-items:center; gap:6px;">
+                                                <span>🏫 DESIGN 1: SCHOOL ADMIT CARD (K-12)</span>
+                                                <span id="admit-school-active-pill" style="background:#22c55e; color:#ffffff; font-size:9px; padding:2px 7px; border-radius:999px; font-weight:900;">ACTIVE FOR SCHOOLS</span>
+                                            </div>
+                                            <div style="font-size:10px; color:#bfdbfe;">Royal Navy &amp; Gold • Class/Section, Roll No, 6-Subject Date-Sheet &amp; Principal Sign</div>
+                                        </div>
+                                        <div style="display:flex; gap:6px;">
+                                            <button type="button" onclick="window.setAdmitTemplateOverride('school')" style="background:#ffffff; color:#1e3a8a; border:none; padding:6px 10px; border-radius:7px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+                                                <i class="fas fa-check-circle"></i> Apply School Design
+                                            </button>
+                                            <button type="button" onclick="window.previewSampleAdmitCardPDF('school')" style="background:#f59e0b; color:#0f172a; border:none; padding:6px 11px; border-radius:7px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+                                                <i class="fas fa-file-pdf"></i> Sample PDF
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style="padding:12px; background:#f1f5f9; text-align:center; cursor:pointer;" onclick="window.openAdmitDesignLightbox('school')" title="Click to enlarge School Admit Card Design">
+                                        <img src="assets/school_admit_card_preview.svg" alt="School Examination Admit Card Design Preview" referrerPolicy="no-referrer" style="width:100%; height:auto; border-radius:8px; box-shadow:0 2px 10px rgba(15,23,42,0.12); display:block;">
+                                    </div>
+                                </div>
+
+                                <!-- Design 2: College NEP-2020 Hall Ticket Image Card -->
+                                <div id="admit-card-showcase-college" style="background:#ffffff; border-radius:12px; border:2px solid #0f766e; overflow:hidden; box-shadow:0 4px 14px rgba(15,118,110,0.08);">
+                                    <div style="background:#0f766e; color:#ffffff; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                                        <div>
+                                            <div style="font-size:13px; font-weight:800; letter-spacing:0.3px; display:flex; align-items:center; gap:6px;">
+                                                <span>🎓 DESIGN 2: COLLEGE NEP-2020 HALL TICKET</span>
+                                                <span id="admit-college-active-pill" style="background:#22c55e; color:#ffffff; font-size:9px; padding:2px 7px; border-radius:999px; font-weight:900;">ACTIVE FOR COLLEGES</span>
+                                            </div>
+                                            <div style="font-size:10px; color:#ccfbf1;">Academic Teal &amp; Gold • Semester, University Roll, NEP Categories (Major/Minor/MDC/AEC/SEC/VAC) &amp; HOD Sign</div>
+                                        </div>
+                                        <div style="display:flex; gap:6px;">
+                                            <button type="button" onclick="window.setAdmitTemplateOverride('college')" style="background:#ffffff; color:#0f766e; border:none; padding:6px 10px; border-radius:7px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+                                                <i class="fas fa-check-circle"></i> Apply College Design
+                                            </button>
+                                            <button type="button" onclick="window.previewSampleAdmitCardPDF('college')" style="background:#fbbf24; color:#0f172a; border:none; padding:6px 11px; border-radius:7px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+                                                <i class="fas fa-file-pdf"></i> Sample PDF
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style="padding:12px; background:#f1f5f9; text-align:center; cursor:pointer;" onclick="window.openAdmitDesignLightbox('college')" title="Click to enlarge College Hall Ticket Design">
+                                        <img src="assets/college_admit_card_preview.svg" alt="College NEP-2020 Semester Examination Hall Ticket Design Preview" referrerPolicy="no-referrer" style="width:100%; height:auto; border-radius:8px; box-shadow:0 2px 10px rgba(15,23,42,0.12); display:block;">
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2887,7 +2968,7 @@
                                     <tr>
                                         <th>Photo</th>
                                         <th>Student Details</th>
-                                        <th>Class</th>
+                                        <th>Class / Sem</th>
                                         <th>Fee Due</th>
                                         <th>Student View</th>
                                         <th>Actions</th>
@@ -3164,19 +3245,22 @@
                     class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i>
                     Back to Dashboard</button>
                 <div class="card"
-                    style="text-align: center; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
-                    <i class="fas fa-calendar-alt" style="font-size: 36px; color: #e67e22; margin-bottom: 12px;"></i>
-                    <h3 style="color: #e67e22; margin-bottom: 8px; font-family:'Inter',sans-serif;">My Exam Admit
-                        Card
-                    </h3>
-                    <p style="color: #64748b; font-size: 13px; margin-bottom: 16px;">Download exam schedule & admit
-                        card.</p>
-                    <div>
-                        <button id="stu-btn-download-admit" class="action-btn btn-yellow"
-                            onclick="window.downloadStudentAdmitCard()"
-                            style="width: 100%; padding: 12px; font-size: 14px; background:#e67e22; color:white; border-radius:10px;"><i
-                                class="fas fa-download"></i> Print / Save PDF</button>
+                    style="padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:18px;">
+                        <div>
+                            <h3 style="color: #1e3a8a; margin: 0; font-size:18px; font-weight:800; font-family:'Inter',sans-serif;">
+                                <i class="fas fa-id-card-clip" style="color:#e67e22; margin-right:6px;"></i>My Examination Admit Card / Hall Ticket
+                            </h3>
+                            <p style="color: #64748b; font-size: 13px; margin: 4px 0 0;">Official examination schedule &amp; admit card for your institution.</p>
+                        </div>
+                        <div>
+                            <button id="stu-btn-download-admit" class="action-btn btn-yellow"
+                                onclick="window.downloadStudentAdmitCard()"
+                                style="padding: 11px 20px; font-size: 13px; font-weight:700; background:#e67e22; color:white; border-radius:10px;"><i
+                                    class="fas fa-download"></i> Print / Save PDF</button>
+                        </div>
                     </div>
+                    <div id="stu-live-admit-preview-box" style="overflow-x:auto;"></div>
                 </div>
             </div>
 

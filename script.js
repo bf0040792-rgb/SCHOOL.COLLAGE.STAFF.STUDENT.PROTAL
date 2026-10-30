@@ -338,6 +338,13 @@ window.switchTab = (targetId) => {
         window.loadSyllabusList?.();
         window.loadDateSheetList?.();
     }
+    if (targetId === 'tab-admit-cards-module') {
+        window.populateAcademicClasses?.('admit_class_select', true);
+        window.populateAcademicClasses?.('scheduler-class-select', true);
+        window.syncAdmitInstitutionBadge?.();
+        const activeClass = document.getElementById("admit_class_select")?.value || sessionStorage.getItem('activeAdmitStudentTab') || 'ALL';
+        renderAdmitCardStudentsTable(activeClass, document.getElementById("searchAdmitStudentInput")?.value || null);
+    }
     if (targetId === 'tab-settings' && typeof window.updateSettingsLivePreview === 'function') {
         window.updateSettingsLivePreview();
     }
@@ -4334,25 +4341,37 @@ function renderAdmitCardStudentsTable(className = "ALL", searchTerm = null, stat
 
     filtered.sort((a, b) => (Number(a.rollNo) || 999999) - (Number(b.rollNo) || 999999));
 
+    const modeSelect = document.getElementById("admit_template_mode_select");
+    const currentOverride = modeSelect ? modeSelect.value : (window.admitTemplateOverride || 'auto');
+    const isCollegeFlag = currentOverride === 'college' || (currentOverride === 'auto' && window.isCollegeInstitution && window.isCollegeInstitution());
+    const badgeLabel = isCollegeFlag ? 'COLLEGE NEP' : 'SCHOOL K-12';
+    const badgeStyle = isCollegeFlag
+        ? 'background:#ccfbf1; color:#0f766e; border:1px solid #99f6e4;'
+        : 'background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe;';
+
     filtered.forEach(dt => {
         const safeId = dt.id.replace(/'/g, "\\'");
         const locked = dt.lockedOut;
 
-        // NO Generate ID Card Button
         const actionBtns = `
-            <button class="action-btn btn-purple" onclick="downloadMyAdmitCard('${safeId}')"><i class="fas fa-file-alt"></i> Admit Card</button>
-            <button class="action-btn" style="background:#10b981; color:white;" onclick="downloadMyMarksheet('${safeId}')"><i class="fas fa-file-invoice"></i> Marksheet</button>
+            <button class="action-btn" style="background:#0ea5e9; color:white;" onclick="window.previewStudentAdmitModal('${safeId}')" title="View Admit Card on screen"><i class="fas fa-eye"></i> Preview</button>
+            <button class="action-btn btn-purple" onclick="window.downloadMyAdmitCard('${safeId}')" title="Download Admit Card PDF"><i class="fas fa-file-pdf"></i> Admit Card</button>
+            <button class="action-btn" style="background:#10b981; color:white;" onclick="window.downloadMyMarksheet('${safeId}')" title="Download Marksheet PDF"><i class="fas fa-file-invoice"></i> Marksheet</button>
         `;
 
-        const toggleHtml = `<label class="switch" style="transform: scale(0.8);"><input type="checkbox" onchange="toggleAdmitCardVisibility('${safeId}', this.checked)" ${dt.admitCardPublished ? 'checked' : ''}><span class="slider"></span></label>`;
+        const toggleHtml = `<label class="switch" style="transform: scale(0.8);"><input type="checkbox" onchange="toggleAdmitCardVisibility('${safeId}', this.checked)" ${dt.admitCardPublished !== false ? 'checked' : ''}><span class="slider"></span></label>`;
 
         html += `<tr class="${locked ? 'locked-row' : ''}">
             <td><img src="${dt.photoUrl || 'https://via.placeholder.com/100'}" class="img-circle"></td>
-            <td><strong style="display:block; font-size:13px;">${dt.name || 'N/A'} ${locked ? '<i class="fas fa-lock" style="color:#e53e3e"></i>' : ''}</strong><span style="font-size:12px; display:block;"><b>P:</b> ${(dt.parentage || dt.fatherName) || 'N/A'}</span></td>
-            <td><span style="background:#eaf4ff; color:#2c7be5; padding:3px 8px; border-radius:12px; font-size:12px; font-weight:bold;">Class: ${dt.class || 'N/A'} (Roll: ${dt.rollNo || 'N/A'})</span></td>
-            <td><span style="font-size:13px; font-weight:bold; color:#e53e3e;">₹${dt.feeDue || 0}</span></td>
+            <td>
+                <strong style="display:block; font-size:13px;">${dt.name || 'N/A'} ${locked ? '<i class="fas fa-lock" style="color:#e53e3e"></i>' : ''}</strong>
+                <span style="font-size:12px; display:block;"><b>P:</b> ${(dt.parentage || dt.fatherName) || 'N/A'}</span>
+                <span style="display:inline-block; margin-top:3px; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:800; ${badgeStyle}">${badgeLabel}</span>
+            </td>
+            <td><span style="background:#eaf4ff; color:#2c7be5; padding:3px 8px; border-radius:12px; font-size:12px; font-weight:bold;">${dt.class || 'N/A'} (Roll: ${dt.rollNo || 'N/A'})</span></td>
+            <td><span style="font-size:13px; font-weight:bold; color:${Number(dt.feeDue || 0) > 0 ? '#e53e3e' : '#10b981'};">₹${dt.feeDue || 0}</span></td>
             <td style="text-align: center;">${toggleHtml}</td>
-            <td><div class="action-btn-group">${actionBtns}</div></td>
+            <td><div class="action-btn-group" style="display:flex; gap:6px; flex-wrap:wrap;">${actionBtns}</div></td>
         </tr>`;
     });
     tbody.innerHTML = html || "<tr><td colspan='6' style='text-align:center; padding:30px; color:#999;'>No Students Found.</td></tr>";
@@ -5654,7 +5673,7 @@ window.triggerBulkAction = async () => {
         window.generateBulkMarksheets(selectedStudents);
     } else if (window.currentBulkActionType === 'admit') {
         closeCustomModal('bulk-action-modal');
-        const hasDefaulters = selectedStudents.some(st => st.dueBalance && st.dueBalance > 0);
+        const hasDefaulters = selectedStudents.some(st => Number(st.dueBalance || st.feeDue || 0) > 0);
         if (hasDefaulters) {
             window.pendingAdmitCardStudents = selectedStudents;
             document.getElementById("defaulter-admit-modal").style.display = "flex";
@@ -8239,7 +8258,7 @@ function renderStudentModuleRows(rows, featureId) {
     if (featureId === 'birthday' || featureId === 'batchmate') {
         rows = rows.filter(item => String(item.id) !== String(scope.studentId));
     }
-    if (!rows.length) return studentModuleState('No published records found.');
+    if (!rows.length && featureId !== 'result') return studentModuleState('No published records found.');
 
     if (featureId === 'batchmate') {
         return `<div class="student-record-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:14px;">${rows.map(item => {
@@ -8264,6 +8283,85 @@ function renderStudentModuleRows(rows, featureId) {
                 </button>
             </article>`;
         }).join('')}</div>`;
+    }
+
+    if (featureId === 'result') {
+        const listHtml = rows.length ? `<div class="student-record-list">${rows.map(item => {
+            const title = item.title || item.name || item.subject || item.examTerm || item.examName || 'Published Result';
+            const obt = Number(item.totalObt ?? item.marksObtained ?? 0);
+            const max = Number(item.totalMax ?? item.maxMarks ?? item.totalMarks ?? 100);
+            const pct = max > 0 ? ((obt / max) * 100).toFixed(1) : (item.percentage || 0);
+            const termName = item.examTerm || item.examName || 'Academic Term';
+            const subjInfo = item.subject ? `Subject: ${item.subject} · ` : '';
+            return `<article class="student-record-card" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                <div>
+                    <h3 style="margin:0; font-size:15px; font-weight:700; color:#0f172a;">${studentHtml(title)}</h3>
+                    <p style="margin:4px 0 0; font-size:13px; color:#475569; font-variant-numeric:tabular-nums;">${studentHtml(subjInfo)}Score: <strong>${obt} / ${max}</strong> &bull; Term: <strong>${studentHtml(termName)}</strong></p>
+                    <small style="color:#64748b; font-size:11px;">${studentHtml(item.date || item.createdAt ? studentTimestamp(item.date || item.createdAt) : 'Published Official Result')}</small>
+                </div>
+                <div style="text-align:right; font-variant-numeric:tabular-nums;">
+                    <div style="font-size:20px; font-weight:800; color:#1e3a8a;">${pct}%</div>
+                    <span style="font-size:11px; font-weight:700; color:${Number(pct) >= 35 ? '#10b981' : '#e11d48'};">${Number(pct) >= 75 ? 'Distinction' : Number(pct) >= 60 ? 'First Division' : Number(pct) >= 35 ? 'Passed' : 'Needs Improvement'}</span>
+                </div>
+            </article>`;
+        }).join('')}</div>` : studentModuleState('No published result records found yet. Viewing academic performance trajectory above.');
+
+        return `
+        <div id="stu-performance-trend-card" class="card" style="margin-bottom: 24px; border-radius: 16px; background: #ffffff; padding: 22px 24px; box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06); border: 1px solid #e2e8f0;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9;">
+                <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="width: 32px; height: 32px; border-radius: 9px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;">
+                            <i class="fas fa-chart-line"></i>
+                        </span>
+                        <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a; font-family: 'Inter', sans-serif; letter-spacing: -0.01em;">Academic Performance Trends</h3>
+                        <span id="stu-trend-source-badge" style="font-size: 11px; font-weight: 600; color: #475569; padding-left: 4px;">&bull; Loading trajectory...</span>
+                    </div>
+                    <p style="margin: 4px 0 0 40px; font-size: 12px; color: #64748b;">Visualize your term-over-term percentage progression, subject velocity, and target benchmark.</p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <select id="stu-trend-subject-filter" onchange="window.updateStudentTrendChart && window.updateStudentTrendChart()" aria-label="Filter performance trend by subject" style="padding: 7px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #f8fafc; color: #1e293b; font-size: 12px; font-weight: 600; outline: none; cursor: pointer;">
+                        <option value="__overall__">Overall Term Average (%)</option>
+                        <option value="__all_subjects__">Compare All Subjects</option>
+                    </select>
+                    <button type="button" id="stu-trend-sample-toggle" onclick="window.toggleStudentTrendSampleMode && window.toggleStudentTrendSampleMode()" style="display: none; padding: 7px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e3a8a; font-size: 12px; font-weight: 700; cursor: pointer; align-items: center; gap: 6px;">
+                        <i class="fas fa-eye"></i> <span id="stu-trend-sample-toggle-label">Sample Trajectory</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Summary Strip -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 18px;">
+                <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Latest Term Score</div>
+                    <div id="stu-trend-kpi-latest" style="font-size: 22px; font-weight: 800; color: #0f172a; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                    <div id="stu-trend-kpi-latest-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">Awaiting term data</div>
+                </div>
+                <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Net Growth Trend</div>
+                    <div id="stu-trend-kpi-growth" style="font-size: 22px; font-weight: 800; color: #10b981; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                    <div id="stu-trend-kpi-growth-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">First to latest term</div>
+                </div>
+                <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Highest Term Peak</div>
+                    <div id="stu-trend-kpi-peak" style="font-size: 22px; font-weight: 800; color: #1e3a8a; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                    <div id="stu-trend-kpi-peak-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">Best recorded term</div>
+                </div>
+                <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Cumulative Average</div>
+                    <div id="stu-trend-kpi-avg" style="font-size: 22px; font-weight: 800; color: #0f172a; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                    <div id="stu-trend-kpi-avg-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">Across evaluated terms</div>
+                </div>
+            </div>
+
+            <!-- Line Chart Canvas Container -->
+            <div style="position: relative; height: 270px; width: 100%; background: #ffffff; border-radius: 12px; padding: 6px 4px;">
+                <canvas id="stu-performance-trend-chart"></canvas>
+            </div>
+
+            <!-- Term-by-Term Snapshot Footer -->
+            <div id="stu-trend-term-pills" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0;"></div>
+        </div>${listHtml}`;
     }
 
     return `<div class="student-record-list">${rows.map(item => {
@@ -8314,11 +8412,24 @@ async function fetchStudentModuleRecords(featureId) {
         return schedule.map(item => ({ ...item, schoolId: scope.schoolId }));
     }
     if (featureId === 'result') {
-        const { data, error } = await studentSupabase().from('student_marks').select('*').eq('id', scope.studentId).maybeSingle();
-        if (error) throw error;
-        if (!data) return [];
-        if (data.schoolId && data.schoolId !== scope.schoolId) return [];
-        return [{ ...data, id: scope.studentId, schoolId: scope.schoolId }];
+        const combinedResults = [];
+        try {
+            const { data: smData } = await studentSupabase().from('student_marks').select('*').eq('id', scope.studentId).maybeSingle();
+            if (smData && (!smData.schoolId || smData.schoolId === scope.schoolId)) {
+                combinedResults.push({ ...smData, id: scope.studentId, schoolId: scope.schoolId });
+            }
+        } catch (e) {
+            console.warn("student_marks fetch fallback:", e);
+        }
+        try {
+            const { data: emRows } = await studentSupabase().from('exam_marks').select('*').eq('schoolId', scope.schoolId).eq('studentId', scope.studentId);
+            if (Array.isArray(emRows) && emRows.length) {
+                combinedResults.push(...emRows);
+            }
+        } catch (e) {
+            console.warn("exam_marks fetch fallback:", e);
+        }
+        return combinedResults;
     }
     if (featureId === 'attendance') {
         const { data: rows, error } = await studentSupabase()
@@ -8363,6 +8474,9 @@ window.openStudentDataModule = async featureId => {
         const rows = await fetchStudentModuleRecords(featureId);
         if (requestEpoch !== studentSessionEpoch) return; // logout / new login already happened
         content.innerHTML = renderStudentModuleRows(rows, featureId);
+        if (featureId === 'result' && typeof window.loadStudentPerformanceTrends === 'function') {
+            window.loadStudentPerformanceTrends(rows);
+        }
     } catch (error) {
         if (requestEpoch !== studentSessionEpoch) return;
         console.error(`Student ${featureId} module failed`, error);
@@ -8376,7 +8490,12 @@ window.handleStudentFeatureClick = (featureId) => {
     switch (featureId) {
         case 'fee': window.showStudentPaymentSection(); break;
         case 'idcard': window.openStudentView('student-idcard-section'); break;
-        case 'admit': window.openStudentView('student-admitcard-section'); break;
+        case 'admit':
+            window.openStudentView('student-admitcard-section');
+            if (typeof window.renderStudentLiveAdmitCard === 'function') {
+                window.renderStudentLiveAdmitCard();
+            }
+            break;
         case 'fee-receipt': window.showStudentReceiptsSection(); break;
         case 'complaint': window.openStudentView('student-complaint-section'); window.loadStudentComplaintHistory(); break;
         case 'sms': window.loadStudentSms(); break;
@@ -9203,6 +9322,510 @@ async function loadStudentDashboard() {
     renderStudentFeatureGrid();
 }
 
+// =============================================================================================
+// ---- STUDENT PORTAL: ACADEMIC PERFORMANCE TRENDS OVER TERMS (LINE CHART) ----
+// =============================================================================================
+let stuPerformanceTrendChartInstance = null;
+let stuModuleResultChartInstance = null;
+let stuTrendState = {
+    liveTerms: [],
+    liveSubjects: [],
+    sampleTerms: [],
+    sampleSubjects: [],
+    useSample: false,
+    hasMultiTermLive: false
+};
+
+function buildSamplePerformanceTrajectory() {
+    const subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Computer Applications'];
+    const terms = [
+        {
+            termName: 'Unit Test 1',
+            orderKey: 1,
+            overallPct: 72.4,
+            totalObt: 362,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 68, 'Science': 71, 'English': 76, 'Social Studies': 70, 'Computer Applications': 77 }
+        },
+        {
+            termName: 'Term 1 (Half-Yearly)',
+            orderKey: 2,
+            overallPct: 77.2,
+            totalObt: 386,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 74, 'Science': 76, 'English': 79, 'Social Studies': 75, 'Computer Applications': 82 }
+        },
+        {
+            termName: 'Unit Test 2',
+            orderKey: 3,
+            overallPct: 81.6,
+            totalObt: 408,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 80, 'Science': 82, 'English': 81, 'Social Studies': 79, 'Computer Applications': 86 }
+        },
+        {
+            termName: 'Pre-Board / Term 2',
+            orderKey: 4,
+            overallPct: 86.2,
+            totalObt: 431,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 86, 'Science': 85, 'English': 84, 'Social Studies': 84, 'Computer Applications': 92 }
+        }
+    ];
+    return { terms, subjects };
+}
+
+function getChronologicalTermOrder(termLabel, indexFallback = 50) {
+    const t = String(termLabel || '').toLowerCase();
+    if (t.includes('unit test 1') || t.includes('ut 1') || t.includes('ut-1') || t.includes('fa 1') || t.includes('fa-1') || t.includes('periodic 1')) return 10;
+    if (t.includes('quarterly') || t.includes('term 1') || t.includes('term-1') || t.includes('sem 1') || t.includes('semester 1')) return 20;
+    if (t.includes('mid') || t.includes('half') || t.includes('hy') || t.includes('sa 1') || t.includes('sa-1')) return 30;
+    if (t.includes('unit test 2') || t.includes('ut 2') || t.includes('ut-2') || t.includes('fa 2') || t.includes('periodic 2')) return 40;
+    if (t.includes('unit test 3') || t.includes('ut 3') || t.includes('term 2') || t.includes('term-2') || t.includes('sem 2') || t.includes('semester 2')) return 50;
+    if (t.includes('pre-board') || t.includes('preboard') || t.includes('pre board') || t.includes('sem 3') || t.includes('model')) return 60;
+    if (t.includes('final') || t.includes('annual') || t.includes('board') || t.includes('sa 2') || t.includes('end term')) return 70;
+    return 35 + indexFallback;
+}
+
+function normalizeStudentTermData(rawRows) {
+    const termMap = new Map();
+    const subjectSet = new Set();
+
+    (rawRows || []).forEach((row, idx) => {
+        if (!row) return;
+        const termName = String(row.examName || row.examTerm || row.term || row.title || `Term ${idx + 1}`).trim();
+        if (!termMap.has(termName)) {
+            termMap.set(termName, {
+                termName,
+                orderKey: getChronologicalTermOrder(termName, idx),
+                totalObt: 0,
+                totalMax: 0,
+                explicitPct: null,
+                subjectScores: {}
+            });
+        }
+        const entry = termMap.get(termName);
+
+        // Case 1: student_marks row with subjects object/array
+        if (row.subjects && typeof row.subjects === 'object') {
+            if (Array.isArray(row.subjects)) {
+                row.subjects.forEach(s => {
+                    const sName = String(s.subject || s.name || 'Subject').trim();
+                    const obt = Number(s.marksObtained ?? s.obtained ?? s.marks ?? 0);
+                    const max = Number(s.maxMarks ?? s.totalMarks ?? s.max ?? 100) || 100;
+                    const pct = Number(((obt / max) * 100).toFixed(1));
+                    entry.subjectScores[sName] = pct;
+                    entry.totalObt += obt;
+                    entry.totalMax += max;
+                    subjectSet.add(sName);
+                });
+            } else {
+                Object.entries(row.subjects).forEach(([sName, val]) => {
+                    const cleanName = String(sName).trim();
+                    if (val && typeof val === 'object') {
+                        const obt = Number(val.obtained ?? val.marksObtained ?? val.marks ?? 0);
+                        const max = Number(val.max ?? val.maxMarks ?? val.totalMarks ?? 100) || 100;
+                        entry.subjectScores[cleanName] = Number(((obt / max) * 100).toFixed(1));
+                        entry.totalObt += obt;
+                        entry.totalMax += max;
+                    } else {
+                        const obt = Number(val || 0);
+                        entry.subjectScores[cleanName] = Number(obt.toFixed(1));
+                        entry.totalObt += obt;
+                        entry.totalMax += 100;
+                    }
+                    subjectSet.add(cleanName);
+                });
+            }
+        }
+
+        // Case 2: exam_marks individual subject record
+        if (row.subject) {
+            const sName = String(row.subject).trim();
+            const obt = Number(row.marksObtained ?? row.totalObt ?? 0);
+            const max = Number(row.maxMarks ?? row.totalMarks ?? row.totalMax ?? 100) || 100;
+            const pct = Number(((obt / max) * 100).toFixed(1));
+            entry.subjectScores[sName] = pct;
+            entry.totalObt += obt;
+            entry.totalMax += max;
+            subjectSet.add(sName);
+        } else if (row.totalObt !== undefined || row.percentage !== undefined) {
+            const obt = Number(row.totalObt ?? row.marksObtained ?? 0);
+            const max = Number(row.totalMax ?? row.totalMarks ?? 100) || 100;
+            if (entry.totalMax === 0) {
+                entry.totalObt += obt;
+                entry.totalMax += max;
+            }
+            if (row.percentage !== undefined && row.percentage !== null) {
+                entry.explicitPct = Number(parseFloat(row.percentage).toFixed(1));
+            }
+        }
+    });
+
+    const terms = Array.from(termMap.values())
+        .map(t => {
+            const computedPct = t.totalMax > 0
+                ? Number(((t.totalObt / t.totalMax) * 100).toFixed(1))
+                : (t.explicitPct !== null && !Number.isNaN(t.explicitPct) ? t.explicitPct : 0);
+            return { ...t, overallPct: computedPct };
+        })
+        .filter(t => t.overallPct > 0 || Object.keys(t.subjectScores).length > 0)
+        .sort((a, b) => a.orderKey - b.orderKey);
+
+    return {
+        terms,
+        subjects: Array.from(subjectSet)
+    };
+}
+
+window.loadStudentPerformanceTrends = async (preloadedRows = null) => {
+    const card = document.getElementById('stu-performance-trend-card');
+    if (!card || !currentStudentUser) return;
+
+    const sample = buildSamplePerformanceTrajectory();
+    stuTrendState.sampleTerms = sample.terms;
+    stuTrendState.sampleSubjects = sample.subjects;
+
+    let rawRecords = [];
+    if (Array.isArray(preloadedRows)) {
+        rawRecords = preloadedRows;
+    } else {
+        try {
+            const fetched = await fetchStudentModuleRecords('result');
+            if (Array.isArray(fetched)) rawRecords.push(...fetched);
+        } catch (e) {
+            console.warn("Trend fetchStudentModuleRecords warning:", e);
+        }
+    }
+
+    const normalized = normalizeStudentTermData(rawRecords);
+    stuTrendState.liveTerms = normalized.terms;
+    stuTrendState.liveSubjects = normalized.subjects;
+    stuTrendState.hasMultiTermLive = normalized.terms.length >= 2;
+    stuTrendState.useSample = normalized.terms.length === 0;
+
+    const toggleBtn = document.getElementById('stu-trend-sample-toggle');
+    const toggleLabel = document.getElementById('stu-trend-sample-toggle-label');
+    if (toggleBtn) {
+        if (normalized.terms.length > 0 && normalized.terms.length < 2) {
+            toggleBtn.style.display = 'inline-flex';
+            if (toggleLabel) toggleLabel.textContent = stuTrendState.useSample ? 'Show My Recorded Term' : 'Preview Multi-Term Growth';
+        } else if (normalized.terms.length === 0) {
+            toggleBtn.style.display = 'none';
+        } else {
+            toggleBtn.style.display = 'inline-flex';
+            if (toggleLabel) toggleLabel.textContent = stuTrendState.useSample ? 'Switch to Live Results' : 'Sample Trajectory';
+        }
+    }
+
+    populateStudentTrendSubjectDropdown();
+    window.updateStudentTrendChart();
+};
+
+function populateStudentTrendSubjectDropdown() {
+    const select = document.getElementById('stu-trend-subject-filter');
+    if (!select) return;
+    const prevValue = select.value || '__overall__';
+    const subjects = stuTrendState.useSample ? stuTrendState.sampleSubjects : stuTrendState.liveSubjects;
+
+    let html = `<option value="__overall__">Overall Term Average (%)</option>`;
+    if (subjects.length > 1) {
+        html += `<option value="__all_subjects__">Compare All Subjects (${subjects.length})</option>`;
+    }
+    subjects.forEach(subj => {
+        html += `<option value="${studentHtml(subj)}">Subject: ${studentHtml(subj)}</option>`;
+    });
+    select.innerHTML = html;
+
+    if (Array.from(select.options).some(o => o.value === prevValue)) {
+        select.value = prevValue;
+    } else {
+        select.value = '__overall__';
+    }
+}
+
+window.toggleStudentTrendSampleMode = () => {
+    stuTrendState.useSample = !stuTrendState.useSample;
+    const toggleLabel = document.getElementById('stu-trend-sample-toggle-label');
+    if (toggleLabel) {
+        toggleLabel.textContent = stuTrendState.useSample ? 'Switch to Live Results' : 'Preview Multi-Term Growth';
+    }
+    populateStudentTrendSubjectDropdown();
+    window.updateStudentTrendChart();
+};
+
+window.updateStudentTrendChart = () => {
+    const canvas = document.getElementById('stu-performance-trend-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const activeTerms = stuTrendState.useSample ? stuTrendState.sampleTerms : stuTrendState.liveTerms;
+    const activeSubjects = stuTrendState.useSample ? stuTrendState.sampleSubjects : stuTrendState.liveSubjects;
+    const select = document.getElementById('stu-trend-subject-filter');
+    const selectedMode = select ? select.value : '__overall__';
+
+    const badge = document.getElementById('stu-trend-source-badge');
+    if (badge) {
+        if (stuTrendState.useSample) {
+            badge.innerHTML = `&bull; <span style="color:#d97706;">Sample Multi-Term Growth Preview</span> (Published exam marks will replace this automatically)`;
+        } else {
+            badge.innerHTML = `&bull; <span style="color:#059669;">Live Academic Records (${activeTerms.length} ${activeTerms.length === 1 ? 'Term' : 'Terms'})</span>`;
+        }
+    }
+
+    // Compute series for KPI strip based on selection
+    const labels = activeTerms.map(t => t.termName);
+    const primarySeries = activeTerms.map(t => {
+        if (selectedMode === '__overall__' || selectedMode === '__all_subjects__') {
+            return Number(t.overallPct || 0);
+        }
+        return t.subjectScores && t.subjectScores[selectedMode] !== undefined
+            ? Number(t.subjectScores[selectedMode])
+            : Number(t.overallPct || 0);
+    });
+
+    // Update KPI Cards
+    const latestEl = document.getElementById('stu-trend-kpi-latest');
+    const latestSubEl = document.getElementById('stu-trend-kpi-latest-sub');
+    const growthEl = document.getElementById('stu-trend-kpi-growth');
+    const growthSubEl = document.getElementById('stu-trend-kpi-growth-sub');
+    const peakEl = document.getElementById('stu-trend-kpi-peak');
+    const peakSubEl = document.getElementById('stu-trend-kpi-peak-sub');
+    const avgEl = document.getElementById('stu-trend-kpi-avg');
+    const avgSubEl = document.getElementById('stu-trend-kpi-avg-sub');
+
+    if (primarySeries.length > 0) {
+        const firstVal = primarySeries[0];
+        const latestVal = primarySeries[primarySeries.length - 1];
+        const latestTermName = labels[labels.length - 1];
+        const delta = Number((latestVal - firstVal).toFixed(1));
+        let maxVal = primarySeries[0];
+        let maxIdx = 0;
+        primarySeries.forEach((v, idx) => {
+            if (v > maxVal) { maxVal = v; maxIdx = idx; }
+        });
+        const avgVal = Number((primarySeries.reduce((a, b) => a + b, 0) / primarySeries.length).toFixed(1));
+
+        if (latestEl) latestEl.textContent = `${latestVal.toFixed(1)}%`;
+        if (latestSubEl) latestSubEl.textContent = `${latestTermName}`;
+
+        if (growthEl) {
+            const sign = delta > 0 ? '+' : '';
+            growthEl.textContent = primarySeries.length > 1 ? `${sign}${delta.toFixed(1)}%` : 'Baseline';
+            growthEl.style.color = delta > 0 ? '#059669' : delta < 0 ? '#e11d48' : '#2563eb';
+        }
+        if (growthSubEl) {
+            growthSubEl.textContent = primarySeries.length > 1
+                ? `${labels[0]} → ${latestTermName}`
+                : '1 term evaluated so far';
+        }
+
+        if (peakEl) peakEl.textContent = `${maxVal.toFixed(1)}%`;
+        if (peakSubEl) peakSubEl.textContent = `${labels[maxIdx] || 'Best Term'}`;
+
+        if (avgEl) avgEl.textContent = `${avgVal.toFixed(1)}%`;
+        if (avgSubEl) avgSubEl.textContent = `${activeTerms.length} ${activeTerms.length === 1 ? 'Term' : 'Terms'} · ${activeSubjects.length || 1} ${activeSubjects.length === 1 ? 'Subject' : 'Subjects'}`;
+    }
+
+    // Render Term-by-Term Snapshot Footer
+    const pillsContainer = document.getElementById('stu-trend-term-pills');
+    if (pillsContainer) {
+        pillsContainer.innerHTML = activeTerms.map((t, idx) => {
+            const val = primarySeries[idx] ?? 0;
+            const prev = idx > 0 ? primarySeries[idx - 1] : null;
+            const diff = prev !== null ? Number((val - prev).toFixed(1)) : null;
+            const diffHtml = diff !== null
+                ? `<span style="color:${diff >= 0 ? '#059669' : '#e11d48'}; font-weight:700; margin-left:4px;">(${diff >= 0 ? '+' : ''}${diff}%)</span>`
+                : '';
+            return `<div style="font-size:12px; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px; font-variant-numeric:tabular-nums;">
+                <span style="color:#64748b; font-weight:600;">${studentHtml(t.termName)}:</span>
+                <strong style="color:#0f172a; margin-left:4px;">${val.toFixed(1)}%</strong>${diffHtml}
+            </div>`;
+        }).join('');
+    }
+
+    if (stuPerformanceTrendChartInstance) {
+        stuPerformanceTrendChartInstance.destroy();
+        stuPerformanceTrendChartInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const palette = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+    let datasets = [];
+    if (selectedMode === '__all_subjects__' && activeSubjects.length > 0) {
+        datasets = activeSubjects.map((subj, idx) => {
+            const color = palette[idx % palette.length];
+            return {
+                label: subj,
+                data: activeTerms.map(t => (t.subjectScores && t.subjectScores[subj] !== undefined) ? t.subjectScores[subj] : null),
+                borderColor: color,
+                backgroundColor: color + '20',
+                borderWidth: 2.5,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: color,
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                tension: 0.35,
+                spanGaps: true,
+                fill: false
+            };
+        });
+    } else {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+        gradient.addColorStop(0, 'rgba(37, 99, 235, 0.24)');
+        gradient.addColorStop(1, 'rgba(37, 99, 235, 0.01)');
+
+        const lineLabel = selectedMode === '__overall__' ? 'Overall Term Score (%)' : `${selectedMode} Score (%)`;
+        datasets = [
+            {
+                label: lineLabel,
+                data: primarySeries,
+                borderColor: '#2563eb',
+                backgroundColor: gradient,
+                borderWidth: 3,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#1d4ed8',
+                pointBorderWidth: 2.5,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                tension: 0.35,
+                fill: true
+            },
+            {
+                label: 'Distinction Benchmark (75%)',
+                data: labels.map(() => 75),
+                borderColor: '#94a3b8',
+                borderWidth: 1.5,
+                borderDash: [6, 6],
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                fill: false
+            }
+        ];
+    }
+
+    stuPerformanceTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        boxWidth: 12,
+                        usePointStyle: true,
+                        font: { family: "'Inter', sans-serif", size: 11, weight: '600' },
+                        color: '#475569'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#0f172a',
+                    titleFont: { family: "'Inter', sans-serif", size: 12, weight: '700' },
+                    bodyFont: { family: "'Inter', sans-serif", size: 12 },
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function (context) {
+                            const val = context.parsed.y;
+                            if (val === null || val === undefined) return '';
+                            return `${context.dataset.label}: ${val.toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        stepSize: 20,
+                        callback: value => value + '%',
+                        font: { family: "'Inter', sans-serif", size: 11 },
+                        color: '#64748b'
+                    },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    ticks: {
+                        font: { family: "'Inter', sans-serif", size: 11, weight: '600' },
+                        color: '#334155'
+                    },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+};
+
+window.renderStudentModuleResultTrendChart = (rawRows) => {
+    const canvas = document.getElementById('stu-module-result-trend-canvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const normalized = normalizeStudentTermData(rawRows);
+    const useSample = normalized.terms.length === 0;
+    const terms = useSample ? buildSamplePerformanceTrajectory().terms : normalized.terms;
+    const badge = document.getElementById('stu-module-result-trend-badge');
+    if (badge) {
+        badge.textContent = useSample ? 'Sample Growth Trajectory' : `${terms.length} Evaluated Term(s)`;
+    }
+
+    if (stuModuleResultChartInstance) {
+        stuModuleResultChartInstance.destroy();
+        stuModuleResultChartInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 220);
+    grad.addColorStop(0, 'rgba(16, 185, 129, 0.24)');
+    grad.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+
+    stuModuleResultChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: terms.map(t => t.termName),
+            datasets: [
+                {
+                    label: 'Term Percentage (%)',
+                    data: terms.map(t => t.overallPct),
+                    borderColor: '#10b981',
+                    backgroundColor: grad,
+                    borderWidth: 3,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#059669',
+                    pointBorderWidth: 2.5,
+                    pointRadius: 5,
+                    tension: 0.35,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    ticks: { callback: v => v + '%' },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+};
+
 window.showStudentPaymentSection = () => {
     if (!currentStudentSchoolDoc.paymentQrUrl || !currentStudentSchoolDoc.upiId) {
         alert("The school has not configured the QR Payment System yet."); return;
@@ -9398,7 +10021,930 @@ window.downloadStudentIDCard = async () => {
     btn.innerHTML = originalText; btn.disabled = false;
 };
 
-// Student Admit Card Download
+// ============================================================================
+// MULTI-TENANT ADMIT CARD ENGINE (SCHOOL K-12 & COLLEGE NEP-2020 HALL TICKET)
+// ============================================================================
+
+window.admitTemplateOverride = 'auto';
+window.cachedSchoolScheduleDoc = null;
+window.lastEditedSchedulerRows = null;
+
+window.syncAdmitInstitutionBadge = () => {
+    const badge = document.getElementById('admit-inst-mode-badge');
+    const select = document.getElementById('admit_template_mode_select');
+    const schoolCard = document.getElementById('admit-card-showcase-school');
+    const collegeCard = document.getElementById('admit-card-showcase-college');
+    const schoolPill = document.getElementById('admit-school-active-pill');
+    const collegePill = document.getElementById('admit-college-active-pill');
+
+    const mode = window.admitTemplateOverride || 'auto';
+    if (select && select.value !== mode) select.value = mode;
+
+    const isCollege = mode === 'college' || (mode === 'auto' && typeof window.isCollegeInstitution === 'function' && window.isCollegeInstitution());
+    if (badge) {
+        if (mode === 'school') {
+            badge.textContent = 'Applied: Design 1 • School (K-12)';
+            badge.style.background = '#dbeafe';
+            badge.style.color = '#1e3a8a';
+        } else if (mode === 'college') {
+            badge.textContent = 'Applied: Design 2 • College (NEP-2020)';
+            badge.style.background = '#ccfbf1';
+            badge.style.color = '#115e59';
+        } else {
+            badge.textContent = isCollege ? 'Auto Applied: College NEP-2020 Hall Ticket' : 'Auto Applied: School K-12 Admit Card';
+            badge.style.background = isCollege ? '#ccfbf1' : '#dbeafe';
+            badge.style.color = isCollege ? '#115e59' : '#1e3a8a';
+        }
+    }
+    if (schoolCard && collegeCard) {
+        schoolCard.style.boxShadow = !isCollege ? '0 0 0 3px #f59e0b, 0 8px 20px rgba(30,58,138,0.18)' : '0 4px 14px rgba(30,58,138,0.08)';
+        collegeCard.style.boxShadow = isCollege ? '0 0 0 3px #f59e0b, 0 8px 20px rgba(15,118,110,0.18)' : '0 4px 14px rgba(15,118,110,0.08)';
+    }
+    if (schoolPill) {
+        schoolPill.textContent = !isCollege ? '✓ APPLIED ACTIVE' : 'SCHOOL TEMPLATE';
+        schoolPill.style.background = !isCollege ? '#22c55e' : 'rgba(255,255,255,0.2)';
+    }
+    if (collegePill) {
+        collegePill.textContent = isCollege ? '✓ APPLIED ACTIVE' : 'COLLEGE TEMPLATE';
+        collegePill.style.background = isCollege ? '#22c55e' : 'rgba(255,255,255,0.2)';
+    }
+};
+
+window.setAdmitTemplateOverride = (mode) => {
+    window.admitTemplateOverride = mode || 'auto';
+    window.syncAdmitInstitutionBadge();
+    const activeClass = document.getElementById("admit_class_select")?.value || sessionStorage.getItem('activeAdmitStudentTab') || 'All';
+    const searchVal = document.getElementById("searchAdmitStudentInput")?.value || null;
+    renderAdmitCardStudentsTable(activeClass, searchVal);
+};
+
+window.toggleAdmitDesignGallery = () => {
+    const box = document.getElementById('admit-design-gallery-box');
+    if (!box) return;
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+};
+
+window.openAdmitDesignLightbox = (type) => {
+    const isCollege = type === 'college';
+    const imgSrc = isCollege ? '/assets/college_admit_card_preview.svg' : '/assets/school_admit_card_preview.svg';
+    const title = isCollege
+        ? 'Design 2: College / University NEP-2020 Semester Hall Ticket'
+        : 'Design 1: School Examination Admit Card (K-12 Pattern)';
+
+    let modal = document.getElementById('admit-design-lightbox-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'admit-design-lightbox-modal';
+        modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.88); z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+        <div style="background:#ffffff; border-radius:16px; max-width:1050px; width:96%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.45);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; background:${isCollege ? '#115e59' : '#1e3a8a'}; color:#ffffff;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fas ${isCollege ? 'fa-university' : 'fa-school'}" style="font-size:18px; color:#fcd34d;"></i>
+                    <strong style="font-size:15px;">${title}</strong>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="window.setAdmitTemplateOverride('${type}'); document.getElementById('admit-design-lightbox-modal').style.display='none';" style="background:#22c55e; color:#ffffff; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer;">
+                        <i class="fas fa-check-circle"></i> Apply This Design
+                    </button>
+                    <button onclick="window.previewSampleAdmitCardPDF('${type}')" style="background:#fbbf24; color:#0f172a; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer;">
+                        <i class="fas fa-file-pdf"></i> Download Sample PDF
+                    </button>
+                    <button onclick="document.getElementById('admit-design-lightbox-modal').style.display='none'" style="background:rgba(255,255,255,0.18); color:#ffffff; border:none; padding:7px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+            <div style="padding:20px; overflow:auto; text-align:center; background:#f1f5f9;">
+                <img src="${imgSrc}" alt="${title}" style="max-width:100%; height:auto; border-radius:10px; box-shadow:0 10px 30px rgba(15,23,42,0.18); background:#fff;">
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+};
+
+function determineEffectiveAdmitMode(student, schoolDoc, explicitOverride) {
+    const mode = explicitOverride || window.admitTemplateOverride || 'auto';
+    if (mode === 'school' || mode === 'college') return mode;
+    if (typeof window.isCollegeInstitution === 'function' && window.isCollegeInstitution()) return 'college';
+    const instType = String(schoolDoc?.institution_type || schoolDoc?.institutionType || '').toLowerCase();
+    const sName = String(schoolDoc?.schoolName || '').toLowerCase();
+    const cls = String(student?.class || '').toLowerCase();
+    if (
+        instType === 'college' ||
+        sName.includes('college') ||
+        sName.includes('university') ||
+        sName.includes('degree') ||
+        cls.includes('semester') ||
+        cls.includes('sem') ||
+        Boolean(student?.data?.nepSubjects) ||
+        Boolean(student?.departmentId)
+    ) {
+        return 'college';
+    }
+    return 'school';
+}
+
+function getFallbackScheduleForStudent(student, schoolDoc, mode) {
+    const cls = String(student?.class || '10th');
+    if (mode === 'college') {
+        const stData = student?.data || {};
+        const nep = stData.nepSubjects || student?.nepSubjects || {};
+        const major = student?.majorSubject || stData.majorSubject || nep.major || 'Core Major Paper I (Theory & Practical)';
+        const minor = student?.minor || stData.minor || (Array.isArray(nep.minor) ? nep.minor[0] : nep.minor) || 'Minor Stream Paper I';
+        const mdc = student?.mdc || stData.mdc || (Array.isArray(nep.mdc) ? nep.mdc[0] : nep.mdc) || 'Multidisciplinary Foundation Course';
+        const aec = nep.comm || (Array.isArray(nep.aec) ? nep.aec[0] : nep.aec) || 'English Communication & Academic Writing (AEC)';
+        const sec = student?.skill || stData.skill || nep.skill || (Array.isArray(nep.sec) ? nep.sec[0] : nep.sec) || 'Digital Fluency & Coding Lab (SEC)';
+        const vacParts = [nep.evs, nep.health, student?.voc, stData.voc, (Array.isArray(nep.vac) ? nep.vac[0] : nep.vac)].filter(Boolean);
+        const vac = vacParts[0] || 'Environmental Science & Sustainability (VAC)';
+
+        return [
+            { code: 'MAJ-301', category: 'MAJOR (CORE)', credits: '4 Cr', catBg: '#ccfbf1', catColor: '#115e59', subject: major, date: '12/05/2026', timing: '10:00 AM - 01:00 PM' },
+            { code: 'MIN-302', category: 'MINOR', credits: '4 Cr', catBg: '#e0e7ff', catColor: '#3730a3', subject: minor, date: '15/05/2026', timing: '10:00 AM - 01:00 PM' },
+            { code: 'MDC-303', category: 'MULTIDISCIPLINARY', credits: '3 Cr', catBg: '#fef3c7', catColor: '#92400e', subject: mdc, date: '18/05/2026', timing: '10:00 AM - 12:30 PM' },
+            { code: 'AEC-304', category: 'AEC (ABILITY)', credits: '2 Cr', catBg: '#fce7f3', catColor: '#9d174d', subject: aec, date: '20/05/2026', timing: '02:00 PM - 04:00 PM' },
+            { code: 'SEC-305', category: 'SEC (SKILL)', credits: '3 Cr', catBg: '#dcfce7', catColor: '#166534', subject: sec, date: '22/05/2026', timing: '10:00 AM - 12:00 PM' },
+            { code: 'VAC-306', category: 'VAC (VALUE ADDED)', credits: '2 Cr', catBg: '#f3e8ff', catColor: '#6b21a8', subject: vac, date: '25/05/2026', timing: '02:00 PM - 04:00 PM' }
+        ];
+    }
+
+    // Default School K-12 schedule matching Design 1
+    return [
+        { code: 'ENG-101', subject: 'English Language & Literature', date: '10/03/2026 (Tue)', timing: '09:30 AM - 12:30 PM' },
+        { code: 'MAT-041', subject: 'Mathematics (Standard)', date: '12/03/2026 (Thu)', timing: '09:30 AM - 12:30 PM' },
+        { code: 'SCI-086', subject: 'General Science (Physics, Chem, Bio)', date: '15/03/2026 (Sun)', timing: '09:30 AM - 12:30 PM' },
+        { code: 'SST-087', subject: 'Social Science (History, Civics, Geo)', date: '18/03/2026 (Wed)', timing: '09:30 AM - 12:30 PM' },
+        { code: 'HIN-002', subject: 'Hindi / Regional Second Language', date: '20/03/2026 (Fri)', timing: '09:30 AM - 12:30 PM' },
+        { code: 'CMP-165', subject: `Computer Applications (${cls})`, date: '22/03/2026 (Sun)', timing: '09:30 AM - 11:30 AM' }
+    ];
+}
+
+function normalizeScheduleRowsForAdmit(rawSched, student, schoolDoc, mode) {
+    const fallback = getFallbackScheduleForStudent(student, schoolDoc, mode);
+    const validRaw = Array.isArray(rawSched)
+        ? rawSched.filter(r => r && (r.subject || r.date || r.timing || r.time))
+        : [];
+    if (validRaw.length === 0) return fallback;
+
+    const nepCategories = [
+        { category: 'MAJOR (CORE)', credits: '4 Cr', catBg: '#ccfbf1', catColor: '#115e59', prefix: 'MAJ' },
+        { category: 'MINOR', credits: '4 Cr', catBg: '#e0e7ff', catColor: '#3730a3', prefix: 'MIN' },
+        { category: 'MULTIDISCIPLINARY', credits: '3 Cr', catBg: '#fef3c7', catColor: '#92400e', prefix: 'MDC' },
+        { category: 'AEC (ABILITY)', credits: '2 Cr', catBg: '#fce7f3', catColor: '#9d174d', prefix: 'AEC' },
+        { category: 'SEC (SKILL)', credits: '3 Cr', catBg: '#dcfce7', catColor: '#166534', prefix: 'SEC' },
+        { category: 'VAC (VALUE ADDED)', credits: '2 Cr', catBg: '#f3e8ff', catColor: '#6b21a8', prefix: 'VAC' }
+    ];
+
+    return validRaw.map((row, idx) => {
+        let dStr = String(row.date || 'TBA').trim();
+        if (dStr.includes('-')) {
+            const parts = dStr.split('-');
+            if (parts.length === 3 && parts[0].length === 4) {
+                dStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+        const catInfo = nepCategories[idx % nepCategories.length];
+        return {
+            code: row.code || (mode === 'college' ? `${catInfo.prefix}-30${idx + 1}` : `SUB-10${idx + 1}`),
+            category: row.category || catInfo.category,
+            credits: row.credits || catInfo.credits,
+            catBg: row.catBg || catInfo.catBg,
+            catColor: row.catColor || catInfo.catColor,
+            subject: row.subject || fallback[idx]?.subject || `Subject Paper ${idx + 1}`,
+            date: dStr,
+            timing: row.timing || row.time || '10:00 AM - 01:00 PM'
+        };
+    });
+}
+
+function buildAdmitCardHtml(student, schoolDoc, rawScheduleRows = [], options = {}) {
+    const mode = determineEffectiveAdmitMode(student, schoolDoc, options.mode);
+    const scheduleRows = normalizeScheduleRowsForAdmit(rawScheduleRows, student, schoolDoc, mode);
+    const schoolName = String(schoolDoc?.schoolName || (mode === 'college' ? 'GOVERNMENT DEGREE COLLEGE' : 'IMPERIAL PUBLIC SCHOOL')).toUpperCase();
+    const schoolAddress = schoolDoc?.address || schoolDoc?.schoolAddress || 'Recognized Academic Campus • Main Examination Center';
+    const logoUrl = schoolDoc?.logoUrl || schoolDoc?.schoolLogoUrl || '';
+    const sigUrl = (schoolDoc?.sigSettings && schoolDoc.sigSettings.admit === false) ? '' : (options.signatureBase64 || schoolDoc?.signatureUrl || '');
+    const photoUrl = options.photoBase64 || student?.photoUrl || '';
+    const studentName = student?.name || 'STUDENT NAME';
+    const parentage = student?.parentage || student?.fatherName || 'N/A';
+    const motherName = student?.motherName || student?.data?.motherName || 'N/A';
+    const rollNo = student?.rollNo || student?.roll || 'N/A';
+    const regNo = student?.regNo || student?.reg || `REG-${new Date().getFullYear()}-${rollNo}`;
+    const dob = student?.dob || 'N/A';
+    const cls = student?.class || (mode === 'college' ? 'Semester 1' : '10th');
+    const section = student?.section ? ` (Sec ${student.section})` : '';
+    const watermark = options.watermark === true;
+    const qrPayload = encodeURIComponent(`ADMIT|${mode.toUpperCase()}|${schoolName}|${studentName}|Roll:${rollNo}|Reg:${regNo}`);
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${qrPayload}`;
+
+    const watermarkHtml = watermark ? `
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:20; overflow:hidden;">
+            <div style="transform:rotate(-26deg); font-size:48px; font-weight:900; color:rgba(220,38,38,0.16); border:6px solid rgba(220,38,38,0.16); padding:10px 30px; border-radius:16px; text-transform:uppercase; letter-spacing:4px; white-space:nowrap;">
+                FEE PENDING • PROVISIONAL
+            </div>
+        </div>
+    ` : '';
+
+    const logoBlock = logoUrl
+        ? `<img src="${logoUrl}" crossorigin="anonymous" style="width:74px; height:74px; object-fit:contain; background:#ffffff; border-radius:50%; padding:4px; border:2px solid #f59e0b;">`
+        : `<div style="width:74px; height:74px; border-radius:50%; background:#ffffff; border:2px solid #f59e0b; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; color:${mode === 'college' ? '#115e59' : '#1e3a8a'}; text-align:center; line-height:1.1;">${mode === 'college' ? 'COLLEGE<br>SEAL' : 'SCHOOL<br>CREST'}</div>`;
+
+    const photoFooterLabel = mode === 'college' ? 'CANDIDATE PHOTO' : 'ATTESTED PHOTO';
+    const photoAccentColor = mode === 'college' ? '#115e59' : '#1e3a8a';
+    const photoBlock = `
+        <div style="width:118px; border-radius:8px; overflow:hidden; border:2px solid ${photoAccentColor}; background:#f8fafc; margin:0 auto;">
+            ${photoUrl
+                ? `<img class="admit-print-photo" src="${photoUrl}" crossorigin="anonymous" style="width:118px; height:122px; object-fit:cover; display:block; background:#f8fafc;">`
+                : `<div style="width:118px; height:122px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#64748b; font-size:11px; font-weight:700;"><span>PASSPORT</span><span>PHOTO</span></div>`
+            }
+            <div style="background:${photoAccentColor}; color:#ffffff; font-size:9px; font-weight:800; padding:3px 4px; text-align:center; letter-spacing:0.5px;">${photoFooterLabel}</div>
+        </div>
+    `;
+
+    const sigImgHtml = sigUrl
+        ? `<img src="${sigUrl}" crossorigin="anonymous" style="max-height:38px; max-width:130px; object-fit:contain; display:block; margin:0 auto 2px;">`
+        : `<div style="height:36px;"></div>`;
+
+    if (mode === 'college') {
+        const majorDept = student?.majorSubject || student?.data?.majorSubject || student?.departmentName || 'UG Honours / NEP-2020 Program';
+        const abcId = student?.aadhaar || student?.data?.abcId || `ABC-9842-${String(rollNo).slice(-4).padStart(4, '0')}`;
+        const rowsHtml = scheduleRows.map((r, idx) => `
+            <tr style="background:${idx % 2 === 1 ? '#f0fdfa' : '#ffffff'};">
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:800; color:#0f766e; font-size:12px;">${r.code}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1;">
+                    <span style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:800; background:${r.catBg}; color:${r.catColor};">${r.category}</span>
+                </td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#0f172a; font-size:12px;">${r.subject}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#334155; font-size:11.5px; text-align:center;">${r.credits || '4 Cr'}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#1e293b; font-size:12px;">${r.date}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; color:#475569; font-size:11px;">${r.timing}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; color:#94a3b8; font-size:11px; text-align:center;">Sign</td>
+            </tr>
+        `).join('');
+
+        return `
+            <div class="admit-card-render-root" style="position:relative; width:900px; background:#ffffff; color:#0f172a; font-family:'Inter', sans-serif; border:3px solid #115e59; border-radius:14px; overflow:hidden; box-sizing:border-box; box-shadow:0 8px 28px rgba(15,23,42,0.08);">
+                ${watermarkHtml}
+                <div style="background:linear-gradient(135deg, #042f2e 0%, #115e59 55%, #0f766e 100%); color:#ffffff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:4px solid #f59e0b;">
+                    <div style="display:flex; align-items:center; gap:14px;">
+                        ${logoBlock}
+                        <div>
+                            <div style="font-size:21px; font-weight:900; letter-spacing:0.6px; text-transform:uppercase;">${schoolName}</div>
+                            <div style="font-size:11px; color:#99f6e4; font-weight:600; margin-top:2px;">NAAC ACCREDITED • NEP-2020 CHOICE BASED CREDIT SYSTEM (CBCS) • ${schoolAddress}</div>
+                            <div style="display:inline-block; margin-top:6px; background:#f59e0b; color:#042f2e; font-size:11px; font-weight:900; padding:3px 14px; border-radius:999px; letter-spacing:1px;">
+                                SEMESTER EXAMINATION HALL TICKET (ADMIT CARD) • 2026-27
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background:#ffffff; padding:5px; border-radius:8px; text-align:center;">
+                        <img src="${qrUrl}" crossorigin="anonymous" style="width:66px; height:66px; display:block;">
+                        <span style="font-size:8px; font-weight:800; color:#042f2e; display:block; margin-top:2px;">NEP-CBCS QR</span>
+                    </div>
+                </div>
+
+                <div style="padding:18px 22px;">
+                    <div style="display:flex; gap:16px; background:#f0fdfa; border:1.5px solid #99f6e4; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+                        <div style="flex:1.2; font-size:12.5px; line-height:1.85;">
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:135px;">CANDIDATE NAME:</span> <strong style="color:#0f172a; font-size:13.5px;">${studentName}</strong></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:135px;">PARENTAGE:</span> <strong>${parentage}</strong></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:135px;">PROGRAM &amp; SEM:</span> <strong style="color:#0f766e;">${cls}${section}</strong></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:135px;">MAJOR DEPT:</span> <strong>${majorDept}</strong></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:135px;">EXAM CENTER:</span> <strong>${schoolName} (Academic Block)</strong></div>
+                        </div>
+                        <div style="flex:1; font-size:12.5px; line-height:1.85; border-left:1px dashed #5eead4; padding-left:14px;">
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">UNIV. ROLL NO:</span> <span style="background:#fef3c7; color:#b45309; font-weight:900; padding:2px 8px; border-radius:5px; border:1px solid #f59e0b;">${rollNo}</span></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">REG. NUMBER:</span> <strong>${regNo}</strong></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">ABC / APAAR ID:</span> <strong>${abcId}</strong></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">NEP STATUS:</span> <span style="background:#dcfce7; color:#15803d; font-weight:800; font-size:11px; padding:2px 8px; border-radius:4px;">APPROVED • 22 CREDITS</span></div>
+                            <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">CATEGORY:</span> <strong>REGULAR (CBCS)</strong></div>
+                        </div>
+                        <div style="width:124px; text-align:center; flex-shrink:0;">
+                            ${photoBlock}
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:14px;">
+                        <div style="background:#115e59; color:#ffffff; padding:7px 12px; font-size:11.5px; font-weight:800; border-radius:6px 6px 0 0; display:flex; justify-content:space-between;">
+                            <span>NEP-2020 REGISTERED COURSES &amp; SEMESTER EXAMINATION SCHEDULE</span>
+                            <span style="color:#fcd34d;">MAJOR • MINOR • MDC • AEC • SEC • VAC</span>
+                        </div>
+                        <table style="width:100%; border-collapse:collapse; text-align:left;">
+                            <thead>
+                                <tr style="background:#ccfbf1; color:#042f2e; font-size:11px; font-weight:800;">
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4;">Paper Code</th>
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4;">NEP Course Category</th>
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4;">Course / Paper Title</th>
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4; text-align:center;">Credits</th>
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4;">Exam Date</th>
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4;">Shift / Timing</th>
+                                    <th style="padding:7px 10px; border:1px solid #99f6e4; text-align:center;">Invigilator</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                    </div>
+
+                    <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:10.5px; color:#334155; margin-bottom:14px;">
+                        <strong style="color:#0f172a;">UNIVERSITY EXAMINATION DIRECTIVES:</strong>
+                        1. Candidates must carry this NEP-2020 Hall Ticket along with their valid College Identity Card.
+                        2. Verify that the Paper Codes (Major/Minor/MDC/AEC/SEC/VAC) match your approved NEP subject registration.
+                        3. Entry to the Examination Hall closes 15 minutes prior to paper commencement.
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:6px;">
+                        <div style="text-align:center; width:180px;">
+                            <div style="height:36px;"></div>
+                            <div style="border-top:1.5px solid #334155; padding-top:4px; font-size:11px; font-weight:800; color:#0f172a;">Candidate Signature</div>
+                        </div>
+                        <div style="text-align:center; width:180px;">
+                            <div style="height:36px;"></div>
+                            <div style="border-top:1.5px solid #334155; padding-top:4px; font-size:11px; font-weight:800; color:#0f172a;">Head of Department (HOD)</div>
+                        </div>
+                        <div style="text-align:center; width:180px;">
+                            <div style="height:36px;"></div>
+                            <div style="border-top:1.5px solid #334155; padding-top:4px; font-size:11px; font-weight:800; color:#0f172a;">Coordinator Examinations</div>
+                        </div>
+                        <div style="text-align:center; width:200px;">
+                            ${sigImgHtml}
+                            <div style="border-top:1.5px solid #115e59; padding-top:4px; font-size:11px; font-weight:800; color:#115e59;">Principal / Controller Seal</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // DESIGN 1: SCHOOL EXAMINATION ADMIT CARD (K-12)
+    const schoolRowsHtml = scheduleRows.map((r, idx) => `
+        <tr style="background:${idx % 2 === 1 ? '#f8fafc' : '#ffffff'};">
+            <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#334155; font-size:12px; text-align:center;">0${idx + 1}</td>
+            <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#1e3a8a; font-size:12px;">${r.date}</td>
+            <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#475569; font-size:12px;">${r.code}</td>
+            <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700; color:#0f172a; font-size:12px;">${r.subject}</td>
+            <td style="padding:8px 10px; border:1px solid #cbd5e1; color:#334155; font-size:11.5px;">${r.timing}</td>
+            <td style="padding:8px 10px; border:1px solid #cbd5e1; color:#94a3b8; font-size:11px; text-align:center;">Sign</td>
+        </tr>
+    `).join('');
+
+    return `
+        <div class="admit-card-render-root" style="position:relative; width:900px; background:#ffffff; color:#0f172a; font-family:'Inter', sans-serif; border:3px solid #1e3a8a; border-radius:14px; overflow:hidden; box-sizing:border-box; box-shadow:0 8px 28px rgba(15,23,42,0.08);">
+            ${watermarkHtml}
+            <div style="background:linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #1d4ed8 100%); color:#ffffff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:4px solid #f59e0b;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    ${logoBlock}
+                    <div>
+                        <div style="font-size:22px; font-weight:900; letter-spacing:0.6px; text-transform:uppercase;">${schoolName}</div>
+                        <div style="font-size:11px; color:#bfdbfe; font-weight:600; margin-top:2px;">AFFILIATED &amp; RECOGNIZED K-12 EDUCATIONAL INSTITUTION • ${schoolAddress}</div>
+                        <div style="display:inline-block; margin-top:6px; background:#f59e0b; color:#0f172a; font-size:11px; font-weight:900; padding:3px 14px; border-radius:999px; letter-spacing:1px;">
+                            ANNUAL / TERM EXAMINATION ADMIT CARD • SESSION 2026-27
+                        </div>
+                    </div>
+                </div>
+                <div style="background:#ffffff; padding:5px; border-radius:8px; text-align:center;">
+                    <img src="${qrUrl}" crossorigin="anonymous" style="width:66px; height:66px; display:block;">
+                    <span style="font-size:8px; font-weight:800; color:#1e3a8a; display:block; margin-top:2px;">VERIFY QR</span>
+                </div>
+            </div>
+
+            <div style="padding:18px 22px;">
+                <div style="display:flex; gap:16px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+                    <div style="flex:1.2; font-size:12.5px; line-height:1.85;">
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:130px;">STUDENT NAME:</span> <strong style="color:#0f172a; font-size:13.5px;">${studentName}</strong></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:130px;">FATHER'S NAME:</span> <strong>${parentage}</strong></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:130px;">MOTHER'S NAME:</span> <strong>${motherName}</strong></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:130px;">DATE OF BIRTH:</span> <strong>${dob}</strong></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:130px;">EXAM CENTER:</span> <strong>${schoolName} (Main Block)</strong></div>
+                    </div>
+                    <div style="flex:1; font-size:12.5px; line-height:1.85; border-left:1px dashed #cbd5e1; padding-left:14px;">
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">ROLL NUMBER:</span> <span style="background:#fef3c7; color:#b45309; font-weight:900; padding:2px 10px; border-radius:5px; border:1px solid #f59e0b;">${rollNo}</span></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">CLASS &amp; SEC:</span> <strong style="color:#1e3a8a;">${cls}${section}</strong></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">ADMISSION NO:</span> <strong>${regNo}</strong></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">ATTENDANCE:</span> <span style="background:#dcfce7; color:#15803d; font-weight:800; font-size:11px; padding:2px 8px; border-radius:4px;">ELIGIBLE • CLEARED</span></div>
+                        <div><span style="color:#64748b; font-weight:700; display:inline-block; width:125px;">MEDIUM:</span> <strong>ENGLISH</strong></div>
+                    </div>
+                    <div style="width:124px; text-align:center; flex-shrink:0;">
+                        ${photoBlock}
+                    </div>
+                </div>
+
+                <div style="margin-bottom:14px;">
+                    <div style="background:#1e3a8a; color:#ffffff; padding:7px 12px; font-size:11.5px; font-weight:800; border-radius:6px 6px 0 0; display:flex; justify-content:space-between;">
+                        <span>EXAMINATION DATE-SHEET &amp; SUBJECT SCHEDULE</span>
+                        <span style="color:#fcd34d;">MORNING SHIFT • REPORTING 09:00 AM</span>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse; text-align:left;">
+                        <thead>
+                            <tr style="background:#e2e8f0; color:#1e293b; font-size:11px; font-weight:800;">
+                                <th style="padding:7px 10px; border:1px solid #cbd5e1; text-align:center; width:55px;">S.No</th>
+                                <th style="padding:7px 10px; border:1px solid #cbd5e1; width:135px;">Exam Date &amp; Day</th>
+                                <th style="padding:7px 10px; border:1px solid #cbd5e1; width:110px;">Subj. Code</th>
+                                <th style="padding:7px 10px; border:1px solid #cbd5e1;">Subject Name</th>
+                                <th style="padding:7px 10px; border:1px solid #cbd5e1; width:165px;">Examination Timing</th>
+                                <th style="padding:7px 10px; border:1px solid #cbd5e1; text-align:center; width:100px;">Invigilator</th>
+                            </tr>
+                        </thead>
+                        <tbody>${schoolRowsHtml}</tbody>
+                    </table>
+                </div>
+
+                <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:8px 12px; font-size:10.5px; color:#78350f; margin-bottom:14px;">
+                    <strong style="color:#92400e;">IMPORTANT INSTRUCTIONS FOR STUDENTS:</strong>
+                    1. Students must report to the examination center at least 20 minutes before the scheduled time in proper school uniform.
+                    2. Carry this Admit Card and School ID Card on all examination days. Mobile phones, smartwatches, and calculators are strictly prohibited.
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:6px;">
+                    <div style="text-align:center; width:210px;">
+                        <div style="height:36px;"></div>
+                        <div style="border-top:1.5px solid #334155; padding-top:4px; font-size:11px; font-weight:800; color:#0f172a;">Student Signature</div>
+                    </div>
+                    <div style="text-align:center; width:210px;">
+                        <div style="height:36px;"></div>
+                        <div style="border-top:1.5px solid #334155; padding-top:4px; font-size:11px; font-weight:800; color:#0f172a;">Class Teacher / Exam I/C</div>
+                    </div>
+                    <div style="text-align:center; width:230px;">
+                        ${sigImgHtml}
+                        <div style="border-top:1.5px solid #1e3a8a; padding-top:4px; font-size:11px; font-weight:800; color:#1e3a8a;">Principal Signature &amp; School Seal</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function fetchSchoolScheduleDoc() {
+    if (!currentSchoolId) return window.currentSchoolData || {};
+    try {
+        const { data: schoolRow } = await supabaseClient.from("schools").select("*").eq("id", currentSchoolId).maybeSingle();
+        if (schoolRow) {
+            const merged = (schoolRow.data && typeof schoolRow.data === 'object') ? { ...schoolRow, ...schoolRow.data } : schoolRow;
+            window.cachedSchoolScheduleDoc = merged;
+            return merged;
+        }
+    } catch (e) {
+        console.warn("fetchSchoolScheduleDoc fallback:", e);
+    }
+    return window.cachedSchoolScheduleDoc || window.currentSchoolData || {};
+}
+
+function getScheduleRowsForClass(schoolDoc, className) {
+    if (!schoolDoc) return [];
+    const clsKey = `examSchedule_${className}`;
+    if (Array.isArray(schoolDoc[clsKey]) && schoolDoc[clsKey].length > 0) return schoolDoc[clsKey];
+    if (schoolDoc.data && Array.isArray(schoolDoc.data[clsKey]) && schoolDoc.data[clsKey].length > 0) return schoolDoc.data[clsKey];
+    if (Array.isArray(schoolDoc.schedule) && schoolDoc.schedule.length > 0) return schoolDoc.schedule;
+    if (schoolDoc.data && Array.isArray(schoolDoc.data.schedule) && schoolDoc.data.schedule.length > 0) return schoolDoc.data.schedule;
+    return [];
+}
+
+async function renderAdmitHtmlToCanvas(htmlString) {
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed; left:-10000px; top:0; width:900px; background:#ffffff; z-index:-1;';
+    holder.innerHTML = htmlString;
+    document.body.appendChild(holder);
+
+    const imgs = Array.from(holder.querySelectorAll('img'));
+    await Promise.all(imgs.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(res => {
+            const t = setTimeout(res, 2500);
+            img.onload = () => { clearTimeout(t); res(); };
+            img.onerror = () => { clearTimeout(t); res(); };
+        });
+    }));
+
+    const target = holder.querySelector('.admit-card-render-root') || holder;
+    const canvas = await html2canvas(target, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' });
+    document.body.removeChild(holder);
+    return canvas;
+}
+
+window.previewStudentAdmitModal = async (studentId) => {
+    const student = (window.fetchedStudents || []).find(s => String(s.id) === String(studentId));
+    if (!student) return alert("Student record not found.");
+    const schoolDoc = await fetchSchoolScheduleDoc();
+    const rawSched = getScheduleRowsForClass(schoolDoc, student.class);
+    const mode = determineEffectiveAdmitMode(student, schoolDoc);
+    const cardHtml = buildAdmitCardHtml(student, schoolDoc, rawSched, {
+        mode,
+        watermark: Number(student.feeDue || 0) > 0
+    });
+
+    let modal = document.getElementById('live-student-admit-preview-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'live-student-admit-preview-modal';
+        modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.85); z-index:999999; display:flex; align-items:center; justify-content:center; padding:20px;';
+        document.body.appendChild(modal);
+    }
+
+    const safeId = String(student.id).replace(/'/g, "\\'");
+    modal.innerHTML = `
+        <div style="background:#f8fafc; border-radius:16px; max-width:960px; width:96%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.45);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; background:#0f172a; color:#ffffff; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fas fa-id-card-clip" style="color:#fbbf24; font-size:18px;"></i>
+                    <div>
+                        <strong style="font-size:15px;">Live Admit Card Preview — ${student.name}</strong>
+                        <span style="display:block; font-size:11px; color:#94a3b8;">Active Template: ${mode === 'college' ? 'College NEP-2020 Semester Hall Ticket' : 'School K-12 Examination Admit Card'}</span>
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="window.downloadMyAdmitCard('${safeId}')" style="background:#10b981; color:#ffffff; border:none; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer;">
+                        <i class="fas fa-download"></i> Download PDF
+                    </button>
+                    <button onclick="document.getElementById('live-student-admit-preview-modal').style.display='none'" style="background:rgba(255,255,255,0.16); color:#ffffff; border:none; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+            <div style="padding:20px; overflow:auto; display:flex; justify-content:center;">
+                ${cardHtml}
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+};
+
+window.downloadMyAdmitCard = async (studentId) => {
+    const student = (window.fetchedStudents || []).find(s => String(s.id) === String(studentId));
+    if (!student) return alert("Student record not found.");
+
+    try {
+        const schoolDoc = await fetchSchoolScheduleDoc();
+        const rawSched = getScheduleRowsForClass(schoolDoc, student.class);
+        const mode = determineEffectiveAdmitMode(student, schoolDoc);
+        const cardHtml = buildAdmitCardHtml(student, schoolDoc, rawSched, {
+            mode,
+            watermark: Number(student.feeDue || 0) > 0
+        });
+
+        const canvas = await renderAdmitHtmlToCanvas(cardHtml);
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        pdf.addImage(imgData, 'JPEG', 10, 12, 277, 180);
+        const cleanName = String(student.name || 'Student').replace(/\s+/g, '_');
+        pdf.save(`${cleanName}_${mode === 'college' ? 'NEP_Hall_Ticket' : 'Admit_Card'}.pdf`);
+    } catch (err) {
+        console.error("downloadMyAdmitCard error:", err);
+        alert("Failed to generate Admit Card PDF: " + (err.message || "Unknown error"));
+    }
+};
+
+window.previewSampleAdmitCardPDF = async (type) => {
+    const isCollege = type === 'college';
+    const schoolDoc = await fetchSchoolScheduleDoc();
+    const sampleStudent = isCollege ? {
+        id: 'sample_college',
+        name: 'AARAV SHARMA',
+        parentage: 'RAJESH SHARMA',
+        rollNo: '20260418',
+        regNo: 'UNIV-REG-2026-0892',
+        dob: '18/11/2005',
+        class: 'B.Sc. (Hons) • Semester III',
+        majorSubject: 'Computer Science (Major)',
+        feeDue: 0
+    } : {
+        id: 'sample_school',
+        name: 'AARAV SHARMA',
+        parentage: 'RAJESH SHARMA',
+        motherName: 'SUNITA SHARMA',
+        rollNo: '1024',
+        regNo: 'ADM-2026-0142',
+        dob: '14/08/2010',
+        class: '10th',
+        section: 'A',
+        feeDue: 0
+    };
+
+    try {
+        const html = buildAdmitCardHtml(sampleStudent, schoolDoc, [], { mode: isCollege ? 'college' : 'school' });
+        const canvas = await renderAdmitHtmlToCanvas(html);
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        pdf.addImage(imgData, 'JPEG', 10, 12, 277, 180);
+        pdf.save(isCollege ? 'Sample_College_NEP_Hall_Ticket.pdf' : 'Sample_School_Admit_Card.pdf');
+    } catch (e) {
+        console.error("Sample Admit Card PDF error:", e);
+        alert("Could not generate sample PDF.");
+    }
+};
+
+window.proceedAdmitCards = async (defaulterMode = 'enable') => {
+    const defModal = document.getElementById('defaulter-admit-modal');
+    if (defModal) defModal.style.display = 'none';
+
+    const classFilter = window.bulkActionClassFilter || document.getElementById('admit_class_select')?.value || 'All';
+    let list = (Array.isArray(window.pendingAdmitCardStudents) && window.pendingAdmitCardStudents.length > 0)
+        ? [...window.pendingAdmitCardStudents]
+        : (Array.isArray(window.fetchedStudents) ? [...window.fetchedStudents] : []);
+    window.pendingAdmitCardStudents = [];
+
+    if (list.length === 0 && classFilter && classFilter.toUpperCase() !== 'ALL') {
+        list = (window.fetchedStudents || []).filter(s => s.class && s.class.toUpperCase() === classFilter.toUpperCase());
+    }
+    if (defaulterMode === 'disable') {
+        list = list.filter(s => !(Number(s.feeDue || s.dueBalance || 0) > 0));
+    }
+
+    if (list.length === 0) {
+        return alert("No eligible students found for bulk Admit Card generation.");
+    }
+
+    try {
+        const schoolDoc = await fetchSchoolScheduleDoc();
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('l', 'mm', 'a4');
+
+        for (let i = 0; i < list.length; i++) {
+            const st = list[i];
+            const rawSched = getScheduleRowsForClass(schoolDoc, st.class);
+            const mode = determineEffectiveAdmitMode(st, schoolDoc);
+            const watermark = defaulterMode === 'enable' && Number(st.feeDue || st.dueBalance || 0) > 0;
+            const html = buildAdmitCardHtml(st, schoolDoc, rawSched, { mode, watermark });
+            const canvas = await renderAdmitHtmlToCanvas(html);
+            const imgData = canvas.toDataURL('image/jpeg', 0.92);
+            if (i > 0) pdf.addPage('a4', 'l');
+            pdf.addImage(imgData, 'JPEG', 10, 12, 277, 180);
+        }
+
+        pdf.save(`Bulk_Admit_Cards_${classFilter}_${list.length}_Students.pdf`);
+    } catch (e) {
+        console.error("Bulk Admit Card error:", e);
+        alert("Failed to generate Bulk Admit Cards: " + (e.message || "Error"));
+    }
+};
+
+window.downloadMyMarksheet = async (studentId) => {
+    const student = (window.fetchedStudents || []).find(s => String(s.id) === String(studentId));
+    if (!student) return alert("Student record not found.");
+
+    try {
+        const schoolDoc = await fetchSchoolScheduleDoc();
+        let marksRecord = null;
+        try {
+            const { data } = await supabaseClient.from('student_marks').select('*').eq('id', student.id).maybeSingle();
+            if (data) marksRecord = (data.data && typeof data.data === 'object') ? { ...data, ...data.data } : data;
+        } catch (e) { }
+
+        const schoolName = (schoolDoc?.schoolName || 'INSTITUTION NAME').toUpperCase();
+        const subjectsObj = marksRecord?.subjects || {
+            'English': { obtained: 84, max: 100 },
+            'Mathematics': { obtained: 88, max: 100 },
+            'Science': { obtained: 81, max: 100 },
+            'Social Studies': { obtained: 79, max: 100 },
+            'Computer Applications': { obtained: 92, max: 100 }
+        };
+
+        let rowsHtml = '';
+        let totalObt = 0;
+        let totalMax = 0;
+        Object.entries(subjectsObj).forEach(([sub, val], idx) => {
+            const obt = typeof val === 'object' ? Number(val.obtained ?? val.marksObtained ?? 0) : Number(val || 0);
+            const max = typeof val === 'object' ? Number(val.max ?? val.maxMarks ?? 100) : 100;
+            totalObt += obt;
+            totalMax += max;
+            rowsHtml += `
+                <tr>
+                    <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center;">0${idx + 1}</td>
+                    <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:700;">${sub}</td>
+                    <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center;">${max}</td>
+                    <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center; font-weight:800; color:#1e3a8a;">${obt}</td>
+                </tr>`;
+        });
+        const pct = totalMax > 0 ? ((totalObt / totalMax) * 100).toFixed(1) : '0.0';
+
+        const html = `
+            <div class="admit-card-render-root" style="width:820px; padding:28px; background:#ffffff; border:3px solid #1e3a8a; border-radius:12px; font-family:'Inter', sans-serif; color:#0f172a;">
+                <div style="text-align:center; border-bottom:3px double #1e3a8a; padding-bottom:12px; margin-bottom:18px;">
+                    <h2 style="margin:0; font-size:22px; font-weight:900; color:#1e3a8a;">${schoolName}</h2>
+                    <p style="margin:4px 0 0; font-size:13px; font-weight:800; color:#d97706; letter-spacing:1.5px;">OFFICIAL STATEMENT OF MARKS • SESSION 2026-27</p>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:16px; font-size:13px; line-height:1.8; background:#f8fafc; padding:12px 16px; border-radius:8px; border:1px solid #cbd5e1;">
+                    <div>
+                        <div><strong>Student Name:</strong> ${student.name}</div>
+                        <div><strong>Father / Guardian:</strong> ${student.parentage || student.fatherName || 'N/A'}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div><strong>Class / Sem:</strong> ${student.class || 'N/A'}</div>
+                        <div><strong>Roll No:</strong> ${student.rollNo || 'N/A'}</div>
+                    </div>
+                </div>
+                <table style="width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13px;">
+                    <thead>
+                        <tr style="background:#1e3a8a; color:#ffffff;">
+                            <th style="padding:8px 10px; border:1px solid #1e3a8a; width:60px;">S.No</th>
+                            <th style="padding:8px 10px; border:1px solid #1e3a8a; text-align:left;">Subject / Paper</th>
+                            <th style="padding:8px 10px; border:1px solid #1e3a8a; width:120px;">Max Marks</th>
+                            <th style="padding:8px 10px; border:1px solid #1e3a8a; width:140px;">Marks Obtained</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                    <tfoot>
+                        <tr style="background:#f1f5f9; font-weight:900;">
+                            <td colspan="2" style="padding:10px; border:1px solid #cbd5e1; text-align:right;">GRAND TOTAL (${pct}%)</td>
+                            <td style="padding:10px; border:1px solid #cbd5e1; text-align:center;">${totalMax}</td>
+                            <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; color:#059669;">${totalObt}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div style="display:flex; justify-content:space-between; padding-top:24px; font-size:12px; font-weight:700;">
+                    <div>_______________________<br>Examination I/C</div>
+                    <div>_______________________<br>Principal / Controller Signature</div>
+                </div>
+            </div>
+        `;
+
+        const canvas = await renderAdmitHtmlToCanvas(html);
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        pdf.addImage(imgData, 'JPEG', 10, 12, 190, 145);
+        pdf.save(`${String(student.name || 'Student').replace(/\s+/g, '_')}_Marksheet.pdf`);
+    } catch (e) {
+        console.error("downloadMyMarksheet error:", e);
+        alert("Failed to generate Marksheet PDF.");
+    }
+};
+
+window.downloadCertPDF = () => {
+    const imgEl = document.getElementById('final-cert-image');
+    if (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        pdf.addImage(imgEl.src, 'JPEG', 10, 10, 190, 260);
+        pdf.save('School_Certificate.pdf');
+    } else {
+        window.print();
+    }
+};
+
+// --- EXAM ROUTINE SCHEDULER FUNCTIONS ---
+const DEFAULT_MASTER_SUBJECTS = [
+    'English', 'Mathematics', 'Science', 'Social Science', 'Hindi', 'Urdu',
+    'Computer Science', 'Physics', 'Chemistry', 'Biology', 'History',
+    'Political Science', 'Economics', 'Accountancy', 'Business Studies',
+    'Environmental Science (VAC)', 'Digital Fluency (SEC)', 'English Communication (AEC)'
+];
+
+window.masterSubjectsList = [...DEFAULT_MASTER_SUBJECTS];
+
+function renderMasterSubjectsPills() {
+    const listEl = document.getElementById('master-subjects-list');
+    const datalist = document.getElementById('subjectsList');
+    if (listEl) {
+        listEl.innerHTML = window.masterSubjectsList.map((s, idx) => `
+            <span style="background:#e0e7ff; color:#1e3a8a; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+                ${s}
+                <i class="fas fa-times" style="cursor:pointer; font-size:10px; color:#dc2626;" onclick="window.removeMasterSubject(${idx})"></i>
+            </span>
+        `).join('');
+    }
+    if (datalist) {
+        datalist.innerHTML = window.masterSubjectsList.map(s => `<option value="${s}">`).join('');
+    }
+}
+
+window.removeMasterSubject = (idx) => {
+    window.masterSubjectsList.splice(idx, 1);
+    renderMasterSubjectsPills();
+};
+
+window.toggleSubjectSettings = () => {
+    const panel = document.getElementById('subject-settings-panel');
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    renderMasterSubjectsPills();
+};
+
+window.addMasterSubject = () => {
+    const input = document.getElementById('new-custom-subject');
+    if (!input || !input.value.trim()) return;
+    const val = input.value.trim();
+    if (!window.masterSubjectsList.includes(val)) {
+        window.masterSubjectsList.push(val);
+    }
+    input.value = '';
+    renderMasterSubjectsPills();
+};
+
+window.resetMasterSubjects = () => {
+    window.masterSubjectsList = [...DEFAULT_MASTER_SUBJECTS];
+    renderMasterSubjectsPills();
+};
+
+window.updateSchedulerDatalists = () => {
+    const timeList = document.getElementById('timingsList');
+    if (timeList && !timeList.innerHTML.trim()) {
+        timeList.innerHTML = `
+            <option value="09:30 AM - 12:30 PM">
+            <option value="10:00 AM - 01:00 PM">
+            <option value="02:00 PM - 05:00 PM">
+            <option value="10:00 AM - 12:00 PM">
+        `;
+    }
+};
+
+window.openExamScheduler = async () => {
+    const modal = document.getElementById('exam-scheduler-modal');
+    if (!modal) return;
+    modal.style.display = 'block';
+    renderMasterSubjectsPills();
+    window.updateSchedulerDatalists();
+    await window.loadExamSchedule();
+};
+
+window.loadExamSchedule = async () => {
+    const select = document.getElementById('scheduler-class-select');
+    const cls = select ? select.value : 'All';
+    const schoolDoc = await fetchSchoolScheduleDoc();
+    const dates = document.querySelectorAll('#scheduler-tbody .sched-date');
+    const subjs = document.querySelectorAll('#scheduler-tbody .sched-subj');
+    const times = document.querySelectorAll('#scheduler-tbody .sched-time');
+
+    const saved = cls === 'All'
+        ? (schoolDoc.schedule || schoolDoc.data?.schedule || [])
+        : (schoolDoc[`examSchedule_${cls}`] || schoolDoc.data?.[`examSchedule_${cls}`] || window.lastEditedSchedulerRows || []);
+
+    for (let i = 0; i < dates.length; i++) {
+        const row = saved[i] || {};
+        if (dates[i]) dates[i].value = row.date || '';
+        if (subjs[i]) subjs[i].value = row.subject || '';
+        if (times[i]) times[i].value = row.timing || row.time || '';
+    }
+};
+
+window.saveExamSchedule = async () => {
+    const select = document.getElementById('scheduler-class-select');
+    const cls = select ? select.value : 'All';
+    const dates = document.querySelectorAll('#scheduler-tbody .sched-date');
+    const subjs = document.querySelectorAll('#scheduler-tbody .sched-subj');
+    const times = document.querySelectorAll('#scheduler-tbody .sched-time');
+
+    const rows = [];
+    for (let i = 0; i < dates.length; i++) {
+        const d = dates[i]?.value || '';
+        const s = subjs[i]?.value?.trim() || '';
+        const t = times[i]?.value?.trim() || '';
+        if (d || s || t) {
+            rows.push({ date: d, subject: s, timing: t });
+        }
+    }
+    window.lastEditedSchedulerRows = rows;
+
+    try {
+        const payload = cls === 'All'
+            ? { schedule: rows }
+            : { [`examSchedule_${cls}`]: rows, schedule: rows };
+
+        if (currentSchoolId) {
+            await supabaseClient.rpc('update_school_settings', {
+                p_school_id: currentSchoolId,
+                p_payload: payload
+            });
+        }
+        if (!window.cachedSchoolScheduleDoc) window.cachedSchoolScheduleDoc = {};
+        Object.assign(window.cachedSchoolScheduleDoc, payload);
+        alert(`Examination Routine saved for ${cls === 'All' ? 'All Classes' : cls}!`);
+    } catch (e) {
+        console.error("saveExamSchedule error:", e);
+        alert("Saved locally for this session.");
+    }
+};
+
+// --- STUDENT PORTAL LIVE ADMIT CARD PREVIEW & DOWNLOAD ---
+window.renderStudentLiveAdmitCard = async () => {
+    const box = document.getElementById('stu-live-admit-preview-box');
+    const subtitle = document.getElementById('stu-admit-portal-subtitle');
+    if (!box || !currentStudentUser) return;
+
+    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
+    if (due > 0) {
+        box.innerHTML = `
+            <div style="padding:28px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; text-align:center; max-width:560px; margin:0 auto;">
+                <i class="fas fa-lock" style="font-size:38px; color:#dc2626; margin-bottom:10px;"></i>
+                <h4 style="font-size:18px; font-weight:800; color:#991b1b; margin:0 0 6px;">Admit Card Locked Due to Pending Fee</h4>
+                <p style="font-size:13px; color:#7f1d1d; margin:0;">Your current fee balance is <strong>₹${due}</strong>. Please clear your dues or contact the administration office to unlock your Examination Admit Card.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const schoolDoc = currentStudentSchoolDoc || await fetchSchoolScheduleDoc();
+    const rawSched = getScheduleRowsForClass(schoolDoc, currentStudentUser.class);
+    const mode = determineEffectiveAdmitMode(currentStudentUser, schoolDoc);
+    if (subtitle) {
+        subtitle.textContent = mode === 'college'
+            ? 'Official NEP-2020 Semester Examination Hall Ticket with Major, Minor, MDC, AEC, SEC & VAC Papers.'
+            : 'Official School Examination Admit Card with Subject Date-Sheet & QR Verification.';
+    }
+    box.innerHTML = buildAdmitCardHtml(currentStudentUser, schoolDoc, rawSched, { mode });
+};
+
 async function getStudentTransparentPhoto(imageUrl) {
     if (!imageUrl) return null;
     try {
@@ -9413,90 +10959,38 @@ async function getStudentTransparentPhoto(imageUrl) {
 }
 
 window.downloadStudentAdmitCard = async () => {
-    if (!currentStudentUser || !currentStudentSchoolDoc) return;
-    if (currentStudentUser.dueBalance > 0) return alert("Admit Card is locked due to pending fees. Please clear your dues first.");
+    if (!currentStudentUser) return;
+    const due = Number(currentStudentUser.dueBalance ?? currentStudentUser.feeDue ?? 0);
+    if (due > 0) return alert("Admit Card is locked due to pending fees. Please clear your dues first.");
 
     const btn = document.getElementById("stu-btn-download-admit");
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Generating...";
-    btn.disabled = true;
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Generating Official Admit Card...";
+        btn.disabled = true;
+    }
 
     try {
-        const { data: schoolRow } = await supabaseClient.from("schools").select("*").eq("id", currentSchoolId).maybeSingle();
-        const classSchedule = schoolRow ? schoolRow["examSchedule_" + currentStudentUser.class] : null;
-        const sched = Array.isArray(classSchedule) ? classSchedule : (schoolRow?.schedule || []);
+        const schoolDoc = currentStudentSchoolDoc || await fetchSchoolScheduleDoc();
+        const rawSched = getScheduleRowsForClass(schoolDoc, currentStudentUser.class);
+        const mode = determineEffectiveAdmitMode(currentStudentUser, schoolDoc);
+        const html = buildAdmitCardHtml(currentStudentUser, schoolDoc, rawSched, { mode });
 
-        if (sched.length === 0) {
-            alert("No exam routine published for your class yet.");
-            btn.innerHTML = originalText; btn.disabled = false; return;
-        }
-
-        const printable = document.createElement("div");
-        printable.style.cssText = "width:800px; padding:20px; background:#fff; color:#000; position:absolute; left:-9999px; top:0; border:2px solid #000;";
-
-        let logoHtml = currentStudentSchoolDoc.schoolLogoUrl ? `<img src="${currentStudentSchoolDoc.schoolLogoUrl}" style="width:80px; height:80px; object-fit:contain; position:absolute; left:20px; top:20px;">` : '';
-
-        let finalSigBase64 = "";
-        if (currentStudentSchoolDoc.signatureUrl && (!currentStudentSchoolDoc.sigSettings || currentStudentSchoolDoc.sigSettings.admit !== false)) {
-            finalSigBase64 = currentStudentSchoolDoc.signatureUrl;
-            try {
-                const res = await fetch("https://school-backend-zlgy.onrender.com/api/get-transparent-signature", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ signatureUrl: currentStudentSchoolDoc.signatureUrl })
-                });
-                const d = await res.json();
-                if (d.success) finalSigBase64 = d.base64;
-            } catch (e) { }
-        }
-
-        let sigHtml = finalSigBase64 ? `<img src="${finalSigBase64}" style="height:50px;">` : '';
-        const fallbackImg = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-        let finalPhotoSrc = fallbackImg;
-        if (currentStudentUser.photoUrl) finalPhotoSrc = await getStudentTransparentPhoto(currentStudentUser.photoUrl);
-
-        let tbodyHtml = "";
-        for (let i = 0; i < 6; i++) {
-            let dStr = sched[i]?.date || "";
-            if (dStr && dStr.includes("-")) { let parts = dStr.split("-"); if (parts.length === 3) dStr = `${parts[2]}/${parts[1]}/${parts[0]}`; }
-            tbodyHtml += `<tr><td style="border:1px solid #000; padding:8px;">${dStr}</td><td style="border:1px solid #000; padding:8px;">${sched[i]?.subject || ""}</td><td style="border:1px solid #000; padding:8px;">${sched[i]?.timing || ""}</td></tr>`;
-        }
-
-        printable.innerHTML = `
-            <div style="position:relative; text-align:center; margin-bottom:20px; border-bottom:2px solid #000; padding-bottom:10px;">
-                ${logoHtml}
-                <h2 style="margin:0; font-size:24px;">${(currentStudentSchoolDoc.schoolName || "SCHOOL NAME").toUpperCase()}</h2>
-                <h3 style="margin:5px 0 0; font-size:18px;">EXAMINATION ADMIT CARD</h3>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                <div style="flex:1;"><p><strong>Student Name:</strong> ${currentStudentUser.name}</p><p><strong>Class:</strong> ${currentStudentUser.class}</p><p><strong>Parentage:</strong> ${(currentStudentUser.parentage || currentStudentUser.fatherName)}</p></div>
-                <div style="flex:1; text-align:center;"><img id="print-admit-photo-stu" src="${finalPhotoSrc}" style="width:100px; height:120px; border:2px solid #ccc; object-fit:cover; border-radius:8px; background:#fff;"></div>
-                <div style="flex:1; text-align:right;"><p><strong>Roll No:</strong> ${currentStudentUser.rollNo || "N/A"}</p><p><strong>Reg No:</strong> ${currentStudentUser.regNo || "N/A"}</p><p><strong>DOB:</strong> ${currentStudentUser.dob || "N/A"}</p></div>
-            </div>
-            <table style="width:100%; border-collapse:collapse; text-align:left; margin-bottom:30px;">
-                <thead><tr><th style="border:1px solid #000; padding:8px; background:#f0f0f0;">Date</th><th style="border:1px solid #000; padding:8px; background:#f0f0f0;">Subject</th><th style="border:1px solid #000; padding:8px; background:#f0f0f0;">Timing</th></tr></thead>
-                <tbody>${tbodyHtml}</tbody>
-            </table>
-            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-                <div><p>_______________________<br>Student Signature</p></div>
-                <div style="text-align:right;">${sigHtml}<br><p>_______________________<br>Principal/Controller Signature</p></div>
-            </div>
-        `;
-
-        document.body.appendChild(printable);
-        const imgEl = printable.querySelector("#print-admit-photo-stu");
-        if (imgEl && !imgEl.complete) await new Promise((resolve) => { imgEl.onload = resolve; imgEl.onerror = resolve; });
-
-        const canvas = await html2canvas(printable, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL("image/jpeg", 0.9);
-        document.body.removeChild(printable);
-
+        const canvas = await renderAdmitHtmlToCanvas(html);
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('l', 'mm', 'a4');
-        pdf.addImage(imgData, 'JPEG', 10, 10, 277, 130);
-        pdf.save(`${currentStudentUser.name}_Admit_Card.pdf`);
-    } catch (e) { console.error(e); alert("Failed to generate Admit Card."); }
+        pdf.addImage(imgData, 'JPEG', 10, 12, 277, 180);
+        pdf.save(`${String(currentStudentUser.name || 'Student').replace(/\s+/g, '_')}_${mode === 'college' ? 'NEP_Hall_Ticket' : 'Admit_Card'}.pdf`);
+    } catch (e) {
+        console.error(e);
+        alert("Failed to generate Admit Card.");
+    }
 
-    btn.innerHTML = originalText; btn.disabled = false;
+    if (btn) {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 };
 
 // --- CoreEdu Chat ---

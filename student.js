@@ -1367,22 +1367,462 @@ window.loadStudentAttendance = async () => {
     }
 };
 
+let stuPerformanceTrendChartInstance = null;
+let stuResultSectionChartInstance = null;
+let stuTrendState = {
+    liveTerms: [],
+    liveSubjects: [],
+    sampleTerms: [],
+    sampleSubjects: [],
+    useSample: false
+};
+
+function buildSamplePerformanceTrajectory() {
+    const subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Computer Applications'];
+    const terms = [
+        {
+            termName: 'Unit Test 1',
+            orderKey: 1,
+            overallPct: 72.4,
+            totalObt: 362,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 68, 'Science': 71, 'English': 76, 'Social Studies': 70, 'Computer Applications': 77 }
+        },
+        {
+            termName: 'Term 1 (Half-Yearly)',
+            orderKey: 2,
+            overallPct: 77.2,
+            totalObt: 386,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 74, 'Science': 76, 'English': 79, 'Social Studies': 75, 'Computer Applications': 82 }
+        },
+        {
+            termName: 'Unit Test 2',
+            orderKey: 3,
+            overallPct: 81.6,
+            totalObt: 408,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 80, 'Science': 82, 'English': 81, 'Social Studies': 79, 'Computer Applications': 86 }
+        },
+        {
+            termName: 'Pre-Board / Term 2',
+            orderKey: 4,
+            overallPct: 86.2,
+            totalObt: 431,
+            totalMax: 500,
+            subjectScores: { 'Mathematics': 86, 'Science': 85, 'English': 84, 'Social Studies': 84, 'Computer Applications': 92 }
+        }
+    ];
+    return { terms, subjects };
+}
+
+function getChronologicalTermOrder(termLabel, indexFallback = 50) {
+    const t = String(termLabel || '').toLowerCase();
+    if (t.includes('unit test 1') || t.includes('ut 1') || t.includes('ut-1') || t.includes('fa 1') || t.includes('periodic 1')) return 10;
+    if (t.includes('quarterly') || t.includes('term 1') || t.includes('term-1') || t.includes('sem 1') || t.includes('semester 1')) return 20;
+    if (t.includes('mid') || t.includes('half') || t.includes('hy') || t.includes('sa 1')) return 30;
+    if (t.includes('unit test 2') || t.includes('ut 2') || t.includes('ut-2') || t.includes('fa 2') || t.includes('periodic 2')) return 40;
+    if (t.includes('unit test 3') || t.includes('ut 3') || t.includes('term 2') || t.includes('term-2') || t.includes('sem 2') || t.includes('semester 2')) return 50;
+    if (t.includes('pre-board') || t.includes('preboard') || t.includes('pre board') || t.includes('sem 3') || t.includes('model')) return 60;
+    if (t.includes('final') || t.includes('annual') || t.includes('board') || t.includes('sa 2') || t.includes('end term')) return 70;
+    return 35 + indexFallback;
+}
+
+function normalizeStudentTermData(rawRows) {
+    const termMap = new Map();
+    const subjectSet = new Set();
+
+    (rawRows || []).forEach((row, idx) => {
+        if (!row) return;
+        const termName = String(row.examName || row.examTerm || row.term || row.title || `Term ${idx + 1}`).trim();
+        if (!termMap.has(termName)) {
+            termMap.set(termName, {
+                termName,
+                orderKey: getChronologicalTermOrder(termName, idx),
+                totalObt: 0,
+                totalMax: 0,
+                explicitPct: null,
+                subjectScores: {}
+            });
+        }
+        const entry = termMap.get(termName);
+
+        if (row.subjects && typeof row.subjects === 'object') {
+            if (Array.isArray(row.subjects)) {
+                row.subjects.forEach(s => {
+                    const sName = String(s.subject || s.name || 'Subject').trim();
+                    const obt = Number(s.marksObtained ?? s.obtained ?? s.marks ?? 0);
+                    const max = Number(s.maxMarks ?? s.totalMarks ?? s.max ?? 100) || 100;
+                    entry.subjectScores[sName] = Number(((obt / max) * 100).toFixed(1));
+                    entry.totalObt += obt;
+                    entry.totalMax += max;
+                    subjectSet.add(sName);
+                });
+            } else {
+                Object.entries(row.subjects).forEach(([sName, val]) => {
+                    const cleanName = String(sName).trim();
+                    if (val && typeof val === 'object') {
+                        const obt = Number(val.obtained ?? val.marksObtained ?? val.marks ?? 0);
+                        const max = Number(val.max ?? val.maxMarks ?? val.totalMarks ?? 100) || 100;
+                        entry.subjectScores[cleanName] = Number(((obt / max) * 100).toFixed(1));
+                        entry.totalObt += obt;
+                        entry.totalMax += max;
+                    } else {
+                        const obt = Number(val || 0);
+                        entry.subjectScores[cleanName] = Number(obt.toFixed(1));
+                        entry.totalObt += obt;
+                        entry.totalMax += 100;
+                    }
+                    subjectSet.add(cleanName);
+                });
+            }
+        }
+
+        if (row.subject) {
+            const sName = String(row.subject).trim();
+            const obt = Number(row.marksObtained ?? row.totalObt ?? 0);
+            const max = Number(row.maxMarks ?? row.totalMarks ?? row.totalMax ?? 100) || 100;
+            entry.subjectScores[sName] = Number(((obt / max) * 100).toFixed(1));
+            entry.totalObt += obt;
+            entry.totalMax += max;
+            subjectSet.add(sName);
+        } else if (row.totalObt !== undefined || row.percentage !== undefined) {
+            const obt = Number(row.totalObt ?? row.marksObtained ?? 0);
+            const max = Number(row.totalMax ?? row.totalMarks ?? 100) || 100;
+            if (entry.totalMax === 0) {
+                entry.totalObt += obt;
+                entry.totalMax += max;
+            }
+            if (row.percentage !== undefined && row.percentage !== null) {
+                entry.explicitPct = Number(parseFloat(row.percentage).toFixed(1));
+            }
+        }
+    });
+
+    const terms = Array.from(termMap.values())
+        .map(t => {
+            const computedPct = t.totalMax > 0
+                ? Number(((t.totalObt / t.totalMax) * 100).toFixed(1))
+                : (t.explicitPct !== null && !Number.isNaN(t.explicitPct) ? t.explicitPct : 0);
+            return { ...t, overallPct: computedPct };
+        })
+        .filter(t => t.overallPct > 0 || Object.keys(t.subjectScores).length > 0)
+        .sort((a, b) => a.orderKey - b.orderKey);
+
+    return {
+        terms,
+        subjects: Array.from(subjectSet)
+    };
+}
+
+async function fetchAllStudentMarksRecords() {
+    const records = [];
+    if (!currentStudentUser) return records;
+    try {
+        const emData = await fetchScopedData('exam_marks', { studentId: currentStudentUser.id });
+        if (Array.isArray(emData)) records.push(...emData);
+    } catch (e) {
+        console.warn("exam_marks fetch warning:", e);
+    }
+    try {
+        const { data: smData } = await supabaseClient
+            .from('student_marks')
+            .select('*')
+            .eq('id', currentStudentUser.id)
+            .maybeSingle();
+        if (smData && (!smData.schoolId || smData.schoolId === currentSchoolId)) {
+            records.push(smData);
+        }
+    } catch (e) {
+        console.warn("student_marks fetch warning:", e);
+    }
+    return records;
+}
+
+window.loadStudentPerformanceTrends = async (preloadedRows = null) => {
+    const card = document.getElementById('stu-performance-trend-card');
+    if (!card || !currentStudentUser) return;
+
+    const sample = buildSamplePerformanceTrajectory();
+    stuTrendState.sampleTerms = sample.terms;
+    stuTrendState.sampleSubjects = sample.subjects;
+
+    const rawRecords = Array.isArray(preloadedRows) ? preloadedRows : await fetchAllStudentMarksRecords();
+    const normalized = normalizeStudentTermData(rawRecords);
+    stuTrendState.liveTerms = normalized.terms;
+    stuTrendState.liveSubjects = normalized.subjects;
+    stuTrendState.useSample = normalized.terms.length === 0;
+
+    const toggleBtn = document.getElementById('stu-trend-sample-toggle');
+    const toggleLabel = document.getElementById('stu-trend-sample-toggle-label');
+    if (toggleBtn) {
+        if (normalized.terms.length > 0) {
+            toggleBtn.style.display = 'inline-flex';
+            if (toggleLabel) toggleLabel.textContent = stuTrendState.useSample ? 'Switch to Live Results' : 'Sample Trajectory';
+        } else {
+            toggleBtn.style.display = 'none';
+        }
+    }
+
+    populateStudentTrendSubjectDropdown();
+    window.updateStudentTrendChart();
+};
+
+function populateStudentTrendSubjectDropdown() {
+    const select = document.getElementById('stu-trend-subject-filter');
+    if (!select) return;
+    const prevValue = select.value || '__overall__';
+    const subjects = stuTrendState.useSample ? stuTrendState.sampleSubjects : stuTrendState.liveSubjects;
+
+    let html = `<option value="__overall__">Overall Term Average (%)</option>`;
+    if (subjects.length > 1) {
+        html += `<option value="__all_subjects__">Compare All Subjects (${subjects.length})</option>`;
+    }
+    subjects.forEach(subj => {
+        html += `<option value="${sanitizeHtml(subj)}">Subject: ${sanitizeHtml(subj)}</option>`;
+    });
+    select.innerHTML = html;
+
+    if (Array.from(select.options).some(o => o.value === prevValue)) {
+        select.value = prevValue;
+    } else {
+        select.value = '__overall__';
+    }
+}
+
+window.toggleStudentTrendSampleMode = () => {
+    stuTrendState.useSample = !stuTrendState.useSample;
+    const toggleLabel = document.getElementById('stu-trend-sample-toggle-label');
+    if (toggleLabel) {
+        toggleLabel.textContent = stuTrendState.useSample ? 'Switch to Live Results' : 'Sample Trajectory';
+    }
+    populateStudentTrendSubjectDropdown();
+    window.updateStudentTrendChart();
+};
+
+window.updateStudentTrendChart = () => {
+    const canvas = document.getElementById('stu-performance-trend-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const activeTerms = stuTrendState.useSample ? stuTrendState.sampleTerms : stuTrendState.liveTerms;
+    const activeSubjects = stuTrendState.useSample ? stuTrendState.sampleSubjects : stuTrendState.liveSubjects;
+    const select = document.getElementById('stu-trend-subject-filter');
+    const selectedMode = select ? select.value : '__overall__';
+
+    const badge = document.getElementById('stu-trend-source-badge');
+    if (badge) {
+        if (stuTrendState.useSample) {
+            badge.innerHTML = `&bull; <span style="color:#d97706;">Sample Multi-Term Growth Preview</span> (Published exam marks will replace this automatically)`;
+        } else {
+            badge.innerHTML = `&bull; <span style="color:#059669;">Live Academic Records (${activeTerms.length} ${activeTerms.length === 1 ? 'Term' : 'Terms'})</span>`;
+        }
+    }
+
+    const labels = activeTerms.map(t => t.termName);
+    const primarySeries = activeTerms.map(t => {
+        if (selectedMode === '__overall__' || selectedMode === '__all_subjects__') {
+            return Number(t.overallPct || 0);
+        }
+        return t.subjectScores && t.subjectScores[selectedMode] !== undefined
+            ? Number(t.subjectScores[selectedMode])
+            : Number(t.overallPct || 0);
+    });
+
+    const latestEl = document.getElementById('stu-trend-kpi-latest');
+    const latestSubEl = document.getElementById('stu-trend-kpi-latest-sub');
+    const growthEl = document.getElementById('stu-trend-kpi-growth');
+    const growthSubEl = document.getElementById('stu-trend-kpi-growth-sub');
+    const peakEl = document.getElementById('stu-trend-kpi-peak');
+    const peakSubEl = document.getElementById('stu-trend-kpi-peak-sub');
+    const avgEl = document.getElementById('stu-trend-kpi-avg');
+    const avgSubEl = document.getElementById('stu-trend-kpi-avg-sub');
+
+    if (primarySeries.length > 0) {
+        const firstVal = primarySeries[0];
+        const latestVal = primarySeries[primarySeries.length - 1];
+        const latestTermName = labels[labels.length - 1];
+        const delta = Number((latestVal - firstVal).toFixed(1));
+        let maxVal = primarySeries[0];
+        let maxIdx = 0;
+        primarySeries.forEach((v, idx) => {
+            if (v > maxVal) { maxVal = v; maxIdx = idx; }
+        });
+        const avgVal = Number((primarySeries.reduce((a, b) => a + b, 0) / primarySeries.length).toFixed(1));
+
+        if (latestEl) latestEl.textContent = `${latestVal.toFixed(1)}%`;
+        if (latestSubEl) latestSubEl.textContent = `${latestTermName}`;
+
+        if (growthEl) {
+            const sign = delta > 0 ? '+' : '';
+            growthEl.textContent = primarySeries.length > 1 ? `${sign}${delta.toFixed(1)}%` : 'Baseline';
+            growthEl.style.color = delta > 0 ? '#059669' : delta < 0 ? '#e11d48' : '#2563eb';
+        }
+        if (growthSubEl) {
+            growthSubEl.textContent = primarySeries.length > 1
+                ? `${labels[0]} → ${latestTermName}`
+                : '1 term evaluated so far';
+        }
+
+        if (peakEl) peakEl.textContent = `${maxVal.toFixed(1)}%`;
+        if (peakSubEl) peakSubEl.textContent = `${labels[maxIdx] || 'Best Term'}`;
+
+        if (avgEl) avgEl.textContent = `${avgVal.toFixed(1)}%`;
+        if (avgSubEl) avgSubEl.textContent = `${activeTerms.length} ${activeTerms.length === 1 ? 'Term' : 'Terms'} · ${activeSubjects.length || 1} ${activeSubjects.length === 1 ? 'Subject' : 'Subjects'}`;
+    }
+
+    const pillsContainer = document.getElementById('stu-trend-term-pills');
+    if (pillsContainer) {
+        pillsContainer.innerHTML = activeTerms.map((t, idx) => {
+            const val = primarySeries[idx] ?? 0;
+            const prev = idx > 0 ? primarySeries[idx - 1] : null;
+            const diff = prev !== null ? Number((val - prev).toFixed(1)) : null;
+            const diffHtml = diff !== null
+                ? `<span style="color:${diff >= 0 ? '#059669' : '#e11d48'}; font-weight:700; margin-left:4px;">(${diff >= 0 ? '+' : ''}${diff}%)</span>`
+                : '';
+            return `<div style="font-size:12px; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px; font-variant-numeric:tabular-nums;">
+                <span style="color:#64748b; font-weight:600;">${sanitizeHtml(t.termName)}:</span>
+                <strong style="color:#0f172a; margin-left:4px;">${val.toFixed(1)}%</strong>${diffHtml}
+            </div>`;
+        }).join('');
+    }
+
+    if (stuPerformanceTrendChartInstance) {
+        stuPerformanceTrendChartInstance.destroy();
+        stuPerformanceTrendChartInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const palette = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+    let datasets = [];
+    if (selectedMode === '__all_subjects__' && activeSubjects.length > 0) {
+        datasets = activeSubjects.map((subj, idx) => {
+            const color = palette[idx % palette.length];
+            return {
+                label: subj,
+                data: activeTerms.map(t => (t.subjectScores && t.subjectScores[subj] !== undefined) ? t.subjectScores[subj] : null),
+                borderColor: color,
+                backgroundColor: color + '20',
+                borderWidth: 2.5,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: color,
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                tension: 0.35,
+                spanGaps: true,
+                fill: false
+            };
+        });
+    } else {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+        gradient.addColorStop(0, 'rgba(37, 99, 235, 0.24)');
+        gradient.addColorStop(1, 'rgba(37, 99, 235, 0.01)');
+
+        const lineLabel = selectedMode === '__overall__' ? 'Overall Term Score (%)' : `${selectedMode} Score (%)`;
+        datasets = [
+            {
+                label: lineLabel,
+                data: primarySeries,
+                borderColor: '#2563eb',
+                backgroundColor: gradient,
+                borderWidth: 3,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#1d4ed8',
+                pointBorderWidth: 2.5,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                tension: 0.35,
+                fill: true
+            },
+            {
+                label: 'Distinction Benchmark (75%)',
+                data: labels.map(() => 75),
+                borderColor: '#94a3b8',
+                borderWidth: 1.5,
+                borderDash: [6, 6],
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                fill: false
+            }
+        ];
+    }
+
+    stuPerformanceTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        boxWidth: 12,
+                        usePointStyle: true,
+                        font: { family: "'Inter', sans-serif", size: 11, weight: '600' },
+                        color: '#475569'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#0f172a',
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function (context) {
+                            const val = context.parsed.y;
+                            if (val === null || val === undefined) return '';
+                            return `${context.dataset.label}: ${val.toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        stepSize: 20,
+                        callback: value => value + '%',
+                        color: '#64748b'
+                    },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    ticks: { color: '#334155' },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+};
+
 window.loadStudentResult = async () => {
     window.openStudentView('student-result-section');
     setContainerState('stu-result-container', 'loading');
     try {
-        const data = await fetchScopedData('exam_marks', { studentId: currentStudentUser.id });
-        if (data.length === 0) return setContainerState('stu-result-container', 'empty', 'No result records found for you.');
+        const data = await fetchAllStudentMarksRecords();
+        if (typeof window.loadStudentPerformanceTrends === 'function') {
+            await window.loadStudentPerformanceTrends(data);
+        }
+
+        if (data.length === 0) return setContainerState('stu-result-container', 'empty', 'No result records found for you yet. Viewing academic performance trajectory above.');
         
         let html = '';
         data.forEach(res => {
+            const obt = res.marksObtained ?? res.totalObt ?? 0;
+            const max = res.totalMarks ?? res.maxMarks ?? res.totalMax ?? 100;
+            const pct = max > 0 ? ((Number(obt) / Number(max)) * 100).toFixed(1) : (res.percentage || 0);
             html += `<div class="p-4 border border-blue-100 rounded-xl bg-blue-50/30 flex justify-between items-center">
                 <div>
-                    <h4 class="font-bold text-blue-900">${sanitizeHtml(res.examName || 'Exam')}</h4>
+                    <h4 class="font-bold text-blue-900">${sanitizeHtml(res.examName || res.examTerm || 'Exam')}</h4>
                     <p class="text-sm text-slate-600">Subject: ${sanitizeHtml(res.subject || 'All Subjects')}</p>
                 </div>
-                <div class="text-right">
-                    <div class="text-2xl font-black text-[#1E3A8A]">${sanitizeHtml(res.marksObtained || 0)}/${sanitizeHtml(res.totalMarks || 100)}</div>
+                <div class="text-right" style="font-variant-numeric: tabular-nums;">
+                    <div class="text-2xl font-black text-[#1E3A8A]">${sanitizeHtml(obt)}/${sanitizeHtml(max)} <span class="text-sm font-bold text-blue-600">(${pct}%)</span></div>
                     <div class="text-xs font-semibold text-green-600">Status: ${sanitizeHtml(res.status || 'Published')}</div>
                 </div>
             </div>`;
@@ -1657,13 +2097,20 @@ window.loadStudentOnlineClasses = async () => {
     }
 };
 
+window.studentPortalAdmitModeOverride = 'auto';
+
+window.setStudentPortalAdmitMode = (mode) => {
+    window.studentPortalAdmitModeOverride = mode || 'auto';
+    window.loadStudentAdmitCard();
+};
+
 window.loadStudentAdmitCard = async () => {
     window.openStudentView('student-admitcard-section');
     const container = $('student-admitcard-section');
     if (!container) return;
-    
+
     const token = sessionStorage.getItem('studentToken');
-    if (!token) return alert("Please log in again.");
+    if (!token && !currentStudentUser) return alert("Please log in again.");
 
     container.innerHTML = `
         <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold no-print"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
@@ -1673,13 +2120,22 @@ window.loadStudentAdmitCard = async () => {
         </div>`;
 
     try {
-        const { data: res, error } = await supabaseClient.rpc('get_student_admit_card_data', { p_token: token });
-        if (error) throw error;
-        if (!res.success) throw new Error(res.error || "Failed to load admit card.");
+        let student = currentStudentUser || {};
+        let school = currentStudentSchoolDoc || {};
+        let datesheets = [];
 
-        const student = res.student;
-        const school = res.school;
-        const datesheets = res.datesheets || [];
+        if (token) {
+            try {
+                const { data: res, error } = await supabaseClient.rpc('get_student_admit_card_data', { p_token: token });
+                if (!error && res && res.success) {
+                    student = { ...student, ...(res.student || {}) };
+                    school = { ...school, ...(res.school || {}) };
+                    datesheets = res.datesheets || [];
+                }
+            } catch (rpcEx) {
+                console.warn("RPC get_student_admit_card_data fallback:", rpcEx);
+            }
+        }
 
         if (student.lockedOut || Number(student.dueBalance || student.feeDue || 0) > 0) {
             container.innerHTML = `
@@ -1692,83 +2148,167 @@ window.loadStudentAdmitCard = async () => {
             return;
         }
 
-        let tableRows = '';
-        if (datesheets.length > 0) {
-            datesheets.forEach(ds => {
-                tableRows += `<tr>
-                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${sanitizeHtml(ds.date || 'TBA')}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; font-weight: 600;">${sanitizeHtml(ds.subject || 'Subject')}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${sanitizeHtml(ds.time || '10:00 AM - 01:00 PM')}</td>
-                </tr>`;
-            });
-        } else {
-            tableRows = `<tr><td colspan="3" style="border: 1px solid #cbd5e1; padding: 14px; text-align: center; color: #64748b;">Examination schedule is being finalized by the examination cell.</td></tr>`;
-        }
+        const instType = String(school.institution_type || school.institutionType || '').toLowerCase();
+        const sName = String(school.schoolName || '').toLowerCase();
+        const clsStr = String(student.class || '').toLowerCase();
+        const autoIsCollege = instType === 'college' || sName.includes('college') || sName.includes('university') || clsStr.includes('semester') || clsStr.includes('sem') || Boolean(student?.data?.nepSubjects) || Boolean(student?.departmentId);
+        const effectiveMode = window.studentPortalAdmitModeOverride === 'school'
+            ? 'school'
+            : window.studentPortalAdmitModeOverride === 'college'
+                ? 'college'
+                : (autoIsCollege ? 'college' : 'school');
 
-        const safeLogo = sanitizeUrl(school.logoUrl);
+        const safeLogo = sanitizeUrl(school.logoUrl || school.schoolLogoUrl);
         const safePhoto = sanitizeUrl(student.photoUrl);
         const safeSign = sanitizeUrl(school.signatureUrl);
+        const schoolName = sanitizeHtml(school.schoolName || (effectiveMode === 'college' ? 'GOVERNMENT DEGREE COLLEGE' : 'IMPERIAL PUBLIC SCHOOL'));
+        const qrData = encodeURIComponent(`Admit:${effectiveMode.toUpperCase()}|${student.name || ''}|${student.rollNo || ''}|${school.schoolName || ''}`);
+
+        let scheduleTableHtml = '';
+        if (effectiveMode === 'college') {
+            const stData = student.data || {};
+            const nep = stData.nepSubjects || student.nepSubjects || {};
+            const defaultNepRows = [
+                { code: 'MAJ-301', cat: 'MAJOR (CORE)', bg: '#ccfbf1', col: '#115e59', subject: student.majorSubject || stData.majorSubject || nep.major || 'Core Major Paper I (Theory)', date: datesheets[0]?.date || '12/05/2026', time: datesheets[0]?.time || '10:00 AM - 01:00 PM' },
+                { code: 'MIN-302', cat: 'MINOR', bg: '#e0e7ff', col: '#3730a3', subject: student.minor || stData.minor || (Array.isArray(nep.minor) ? nep.minor[0] : nep.minor) || 'Minor Stream Paper I', date: datesheets[1]?.date || '15/05/2026', time: datesheets[1]?.time || '10:00 AM - 01:00 PM' },
+                { code: 'MDC-303', cat: 'MULTIDISCIPLINARY', bg: '#fef3c7', col: '#92400e', subject: student.mdc || stData.mdc || (Array.isArray(nep.mdc) ? nep.mdc[0] : nep.mdc) || 'Multidisciplinary Course', date: datesheets[2]?.date || '18/05/2026', time: datesheets[2]?.time || '10:00 AM - 12:30 PM' },
+                { code: 'AEC-304', cat: 'AEC (ABILITY)', bg: '#fce7f3', col: '#9d174d', subject: (Array.isArray(nep.aec) ? nep.aec[0] : nep.aec) || 'English Communication (AEC)', date: datesheets[3]?.date || '20/05/2026', time: datesheets[3]?.time || '02:00 PM - 04:00 PM' },
+                { code: 'SEC-305', cat: 'SEC (SKILL)', bg: '#dcfce7', col: '#166534', subject: student.skill || stData.skill || (Array.isArray(nep.sec) ? nep.sec[0] : nep.sec) || 'Digital Fluency & Skill Lab (SEC)', date: datesheets[4]?.date || '22/05/2026', time: datesheets[4]?.time || '10:00 AM - 12:00 PM' },
+                { code: 'VAC-306', cat: 'VAC (VALUE ADDED)', bg: '#f3e8ff', col: '#6b21a8', subject: student.voc || stData.voc || (Array.isArray(nep.vac) ? nep.vac[0] : nep.vac) || 'Environmental Studies (VAC)', date: datesheets[5]?.date || '25/05/2026', time: datesheets[5]?.time || '02:00 PM - 04:00 PM' }
+            ];
+
+            scheduleTableHtml = `
+                <div style="background:#115e59; color:#ffffff; padding:8px 12px; font-size:12px; font-weight:800; border-radius:6px 6px 0 0; display:flex; justify-content:space-between;">
+                    <span>NEP-2020 REGISTERED COURSES & SEMESTER EXAMINATION SCHEDULE</span>
+                    <span style="color:#fcd34d;">CBCS CREDIT PATTERN</span>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="background: #ccfbf1; color: #042f2e; font-size: 11px; font-weight: 800;">
+                            <th style="border: 1px solid #99f6e4; padding: 8px;">Paper Code</th>
+                            <th style="border: 1px solid #99f6e4; padding: 8px;">NEP Category</th>
+                            <th style="border: 1px solid #99f6e4; padding: 8px;">Course / Paper Title</th>
+                            <th style="border: 1px solid #99f6e4; padding: 8px;">Exam Date</th>
+                            <th style="border: 1px solid #99f6e4; padding: 8px;">Timing</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${defaultNepRows.map(r => `
+                            <tr>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; font-weight: 800; color: #0f766e;">${sanitizeHtml(r.code)}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px;"><span style="background:${r.bg}; color:${r.col}; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:800;">${sanitizeHtml(r.cat)}</span></td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; font-weight: 700;">${sanitizeHtml(r.subject)}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; font-weight: 700;">${sanitizeHtml(r.date)}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 11px;">${sanitizeHtml(r.time)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } else {
+            const schoolRows = datesheets.length > 0 ? datesheets : [
+                { code: 'ENG-101', date: '10/03/2026', subject: 'English Language & Literature', time: '09:30 AM - 12:30 PM' },
+                { code: 'MAT-102', date: '12/03/2026', subject: 'Mathematics', time: '09:30 AM - 12:30 PM' },
+                { code: 'SCI-103', date: '15/03/2026', subject: 'General Science (Physics, Chem, Bio)', time: '09:30 AM - 12:30 PM' },
+                { code: 'SST-104', date: '18/03/2026', subject: 'Social Science', time: '09:30 AM - 12:30 PM' },
+                { code: 'HIN-105', date: '20/03/2026', subject: 'Hindi / Second Language', time: '09:30 AM - 12:30 PM' },
+                { code: 'CMP-106', date: '22/03/2026', subject: 'Computer Applications', time: '09:30 AM - 11:30 AM' }
+            ];
+            scheduleTableHtml = `
+                <div style="background:#1e3a8a; color:#ffffff; padding:8px 12px; font-size:12px; font-weight:800; border-radius:6px 6px 0 0; display:flex; justify-content:space-between;">
+                    <span>SCHOOL EXAMINATION DATE-SHEET & SUBJECT SCHEDULE</span>
+                    <span style="color:#fcd34d;">MORNING SHIFT</span>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="background: #e2e8f0; color: #1e293b; font-size: 11px; font-weight: 800;">
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 55px; text-align:center;">S.No</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px;">Exam Date</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px;">Subj. Code</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px;">Subject Name</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px;">Timing</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${schoolRows.map((ds, idx) => `
+                            <tr>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align:center; font-weight:700;">0${idx + 1}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; font-weight:700; color:#1e3a8a;">${sanitizeHtml(ds.date || 'TBA')}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px;">${sanitizeHtml(ds.code || `SUB-10${idx + 1}`)}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; font-weight: 700;">${sanitizeHtml(ds.subject || 'Subject')}</td>
+                                <td style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px;">${sanitizeHtml(ds.time || ds.timing || '09:30 AM - 12:30 PM')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        const headerGrad = effectiveMode === 'college'
+            ? 'linear-gradient(135deg, #042f2e 0%, #115e59 55%, #0f766e 100%)'
+            : 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #1d4ed8 100%)';
+        const borderCol = effectiveMode === 'college' ? '#115e59' : '#1e3a8a';
 
         container.innerHTML = `
-            <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold no-print"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
-            <div id="printable-admit-card" style="background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 2px solid #0f172a; max-width: 820px; margin: 0 auto 20px;">
-                <!-- Header -->
-                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #0f172a; padding-bottom: 14px; margin-bottom: 18px;">
-                    ${safeLogo ? `<img src="${safeLogo}" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px;">` : `<div style="width:70px;"></div>`}
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4 no-print">
+                <button onclick="openStudentView('student-main-grid')" class="flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="font-bold text-slate-600">Template Mode:</span>
+                    <button onclick="window.setStudentPortalAdmitMode('school')" class="px-3 py-1 rounded-lg font-bold ${effectiveMode === 'school' ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-700'}">School (K-12)</button>
+                    <button onclick="window.setStudentPortalAdmitMode('college')" class="px-3 py-1 rounded-lg font-bold ${effectiveMode === 'college' ? 'bg-teal-800 text-white' : 'bg-slate-200 text-slate-700'}">College (NEP-2020)</button>
+                </div>
+            </div>
+            <div id="printable-admit-card" style="background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 3px solid ${borderCol}; max-width: 860px; margin: 0 auto 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; background: ${headerGrad}; color: white; padding: 16px 22px; border-bottom: 4px solid #f59e0b;">
+                    ${safeLogo !== '#' ? `<img src="${safeLogo}" style="width: 68px; height: 68px; object-fit: contain; border-radius: 50%; background: white; padding: 4px; border: 2px solid #f59e0b;">` : `<div style="width:68px; height:68px; border-radius:50%; background:white; color:${borderCol}; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:11px; text-align:center;">${effectiveMode === 'college' ? 'COLLEGE<br>SEAL' : 'SCHOOL<br>CREST'}</div>`}
                     <div style="text-align: center; flex: 1; padding: 0 12px;">
-                        <h2 style="font-size: 20px; font-weight: 900; color: #1E3A8A; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${sanitizeHtml(school.schoolName || 'INSTITUTION NAME')}</h2>
-                        <h3 style="font-size: 14px; font-weight: 800; color: #e67e22; margin: 4px 0 0; letter-spacing: 2px;">EXAMINATION ADMIT CARD</h3>
-                        <p style="font-size: 11px; color: #64748b; margin: 2px 0 0;">ACADEMIC SESSION 2026-2027</p>
+                        <h2 style="font-size: 20px; font-weight: 900; color: #ffffff; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">${schoolName}</h2>
+                        <div style="display: inline-block; margin-top: 6px; background: #f59e0b; color: #0f172a; font-size: 11px; font-weight: 900; padding: 3px 14px; border-radius: 999px; letter-spacing: 1px;">
+                            ${effectiveMode === 'college' ? 'SEMESTER EXAMINATION HALL TICKET (NEP-2020)' : 'SCHOOL EXAMINATION ADMIT CARD • SESSION 2026-27'}
+                        </div>
                     </div>
-                    <div style="width: 70px; text-align: right;">
-                        <img id="stu-admit-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent('Admit:' + (student.name || '') + '|' + (student.rollNo || '') + '|' + (school.schoolName || ''))}" style="width: 65px; height: 65px;">
-                    </div>
-                </div>
-
-                <!-- Student Details Grid -->
-                <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
-                    <div style="flex: 1; font-size: 13px; line-height: 1.8;">
-                        <div><strong style="color: #475569;">Student Name:</strong> <span style="font-weight: 800; color: #0f172a;">${sanitizeHtml(student.name || '')}</span></div>
-                        <div><strong style="color: #475569;">Parentage:</strong> <span style="font-weight: 600;">${sanitizeHtml(student.parentage || student.fatherName || 'N/A')}</span></div>
-                        <div><strong style="color: #475569;">Class / Semester:</strong> <span style="font-weight: 700; color: #1E3A8A;">${sanitizeHtml(student.class || '')}</span></div>
-                        <div><strong style="color: #475569;">Roll Number:</strong> <span style="font-weight: 800; color: #dc2626;">${sanitizeHtml(student.rollNo || 'N/A')}</span></div>
-                        <div><strong style="color: #475569;">Registration No:</strong> <span style="font-weight: 700;">${sanitizeHtml(student.regNo || 'N/A')}</span></div>
-                        <div><strong style="color: #475569;">Date of Birth:</strong> <span>${sanitizeHtml(formatDobForDisplay(student.dob))}</span></div>
-                    </div>
-                    <div style="width: 120px; text-align: center; flex-shrink: 0;">
-                        ${safePhoto ? `<img src="${safePhoto}" style="width: 110px; height: 130px; object-fit: cover; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">` : `<div style="width: 110px; height: 130px; border: 2px dashed #94a3b8; display:flex; align-items:center; justify-content:center; color:#94a3b8; border-radius:8px;">Photo</div>`}
+                    <div style="background: white; padding: 4px; border-radius: 8px; text-align: center;">
+                        <img id="stu-admit-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${qrData}" style="width: 62px; height: 62px; display:block;">
                     </div>
                 </div>
 
-                <!-- Datesheet / Subjects -->
-                <div style="margin-bottom: 24px;">
-                    <h4 style="font-size: 13px; font-weight: 700; color: #1E3A8A; margin-bottom: 8px; text-transform: uppercase;"><i class="fas fa-list-check"></i> Examination Schedule</h4>
-                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                        <thead>
-                            <tr style="background: #f1f5f9;">
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #334155;">Exam Date</th>
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #334155;">Subject / Paper</th>
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; color: #334155;">Timing</th>
-                            </tr>
-                        </thead>
-                        <tbody>${tableRows}</tbody>
-                    </table>
-                </div>
-
-                <!-- Footer Signatures -->
-                <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 16px; border-top: 1px solid #cbd5e1;">
-                    <div style="text-align: center; width: 180px;">
-                        <div style="height: 40px;"></div>
-                        <div style="border-top: 1px solid #0f172a; padding-top: 4px; font-size: 12px; font-weight: 600;">Candidate Signature</div>
+                <div style="padding: 20px 24px;">
+                    <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 18px; background: ${effectiveMode === 'college' ? '#f0fdfa' : '#f8fafc'}; border: 1.5px solid ${effectiveMode === 'college' ? '#99f6e4' : '#cbd5e1'}; border-radius: 10px; padding: 14px 16px;">
+                        <div style="flex: 1; font-size: 13px; line-height: 1.85;">
+                            <div><strong style="color: #475569;">${effectiveMode === 'college' ? 'Candidate Name:' : 'Student Name:'}</strong> <span style="font-weight: 800; color: #0f172a;">${sanitizeHtml(student.name || '')}</span></div>
+                            <div><strong style="color: #475569;">Parentage:</strong> <span style="font-weight: 600;">${sanitizeHtml(student.parentage || student.fatherName || 'N/A')}</span></div>
+                            <div><strong style="color: #475569;">${effectiveMode === 'college' ? 'Degree / Semester:' : 'Class & Section:'}</strong> <span style="font-weight: 700; color: ${borderCol};">${sanitizeHtml(student.class || '')}</span></div>
+                            <div><strong style="color: #475569;">${effectiveMode === 'college' ? 'University Roll No:' : 'Roll Number:'}</strong> <span style="font-weight: 900; color: #b45309; background: #fef3c7; padding: 1px 8px; border-radius: 4px;">${sanitizeHtml(student.rollNo || 'N/A')}</span></div>
+                            <div><strong style="color: #475569;">Registration No:</strong> <span style="font-weight: 700;">${sanitizeHtml(student.regNo || 'N/A')}</span></div>
+                            <div><strong style="color: #475569;">Date of Birth:</strong> <span>${sanitizeHtml(formatDobForDisplay(student.dob))}</span></div>
+                        </div>
+                        <div style="width: 120px; text-align: center; flex-shrink: 0;">
+                            ${safePhoto !== '#' ? `<img src="${safePhoto}" style="width: 110px; height: 132px; object-fit: cover; border-radius: 8px; border: 2px solid ${borderCol}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">` : `<div style="width: 110px; height: 132px; border: 2px dashed #94a3b8; display:flex; align-items:center; justify-content:center; color:#94a3b8; border-radius:8px; font-size:11px; font-weight:700;">PASSPORT<br>PHOTO</div>`}
+                        </div>
                     </div>
-                    <div style="text-align: center; width: 180px;">
-                        ${safeSign ? `<img src="${safeSign}" style="max-height: 40px; margin-bottom: 4px; display:inline-block;">` : `<div style="height: 40px;"></div>`}
-                        <div style="border-top: 1px solid #0f172a; padding-top: 4px; font-size: 12px; font-weight: 700; color: #1E3A8A;">Controller of Examinations</div>
+
+                    <div style="margin-bottom: 20px;">
+                        ${scheduleTableHtml}
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 16px; border-top: 1px solid #cbd5e1;">
+                        <div style="text-align: center; width: 170px;">
+                            <div style="height: 38px;"></div>
+                            <div style="border-top: 1.5px solid #0f172a; padding-top: 4px; font-size: 11px; font-weight: 700;">${effectiveMode === 'college' ? 'Candidate Signature' : 'Student Signature'}</div>
+                        </div>
+                        <div style="text-align: center; width: 170px;">
+                            <div style="height: 38px;"></div>
+                            <div style="border-top: 1.5px solid #0f172a; padding-top: 4px; font-size: 11px; font-weight: 700;">${effectiveMode === 'college' ? 'Head of Department (HOD)' : 'Class Teacher / Exam I/C'}</div>
+                        </div>
+                        <div style="text-align: center; width: 190px;">
+                            ${safeSign !== '#' ? `<img src="${safeSign}" style="max-height: 38px; margin-bottom: 4px; display:inline-block;">` : `<div style="height: 38px;"></div>`}
+                            <div style="border-top: 1.5px solid ${borderCol}; padding-top: 4px; font-size: 11px; font-weight: 800; color: ${borderCol};">${effectiveMode === 'college' ? 'Principal / Controller Seal' : 'Principal Signature & Seal'}</div>
+                        </div>
                     </div>
                 </div>
             </div>
             <div style="text-align: center; margin-bottom: 24px;" class="no-print">
-                <button onclick="window.print()" class="action-btn" style="background:#1E3A8A; color:white; padding: 12px 28px; font-size: 14px; font-weight: 700; border-radius: 10px; cursor: pointer;">
+                <button onclick="window.print()" class="action-btn" style="background:${borderCol}; color:white; padding: 12px 28px; font-size: 14px; font-weight: 700; border-radius: 10px; cursor: pointer;">
                     <i class="fas fa-print mr-2"></i> Print Admit Card / Save as PDF
                 </button>
             </div>

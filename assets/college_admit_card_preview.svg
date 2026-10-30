@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="820" viewBox="0 0 1100 820">
+  <defs>
+    <linearGradient id="collegeHeaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#115e59"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+    <linearGradient id="collegeGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#b45309"/>
+      <stop offset="50%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="1100" height="820" fill="#e2e8f0"/>
+
+  <!-- Top Design Label Pill -->
+  <rect x="30" y="14" width="540" height="28" rx="6" fill="#0f766e"/>
+  <text x="46" y="33" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#ffffff" letter-spacing="1">DESIGN 2: COLLEGE / UNIVERSITY NEP-2020 SEMESTER HALL TICKET</text>
+
+  <!-- Main A4 Sheet Card -->
+  <rect x="30" y="50" width="1040" height="745" rx="10" fill="#ffffff" stroke="#0f766e" stroke-width="3"/>
+  <rect x="38" y="58" width="1024" height="729" rx="6" fill="none" stroke="#99f6e4" stroke-width="1"/>
+
+  <!-- College Header Banner -->
+  <rect x="40" y="60" width="1020" height="114" rx="6" fill="url(#collegeHeaderGrad)"/>
+  <rect x="40" y="168" width="1020" height="6" fill="url(#collegeGold)"/>
+
+  <!-- University / College Crest -->
+  <circle cx="106" cy="114" r="38" fill="#ffffff" stroke="#fbbf24" stroke-width="3"/>
+  <circle cx="106" cy="114" r="31" fill="#f0fdfa" stroke="#0f766e" stroke-width="1.5"/>
+  <text x="106" y="111" font-family="Georgia, serif" font-size="15" font-weight="bold" fill="#0f766e" text-anchor="middle">GDC</text>
+  <text x="106" y="127" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#b45309" text-anchor="middle">NAAC A+</text>
+
+  <!-- College Title & University Affiliation -->
+  <text x="545" y="94" font-family="Georgia, serif" font-size="25" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="1.2">GOVERNMENT DEGREE COLLEGE (AUTONOMOUS)</text>
+  <text x="545" y="116" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#fde68a" text-anchor="middle" letter-spacing="1">NAAC ACCREDITED GRADE &apos;A+&apos; • AFFILIATED UNIVERSITY EXAMINATION CONTROLLER CELL</text>
+
+  <!-- Hall Ticket Badge -->
+  <rect x="305" y="128" width="480" height="28" rx="14" fill="#ffffff"/>
+  <text x="545" y="147" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f766e" text-anchor="middle" letter-spacing="1.2">NEP-2020 SEMESTER EXAMINATION HALL TICKET / ADMIT CARD</text>
+
+  <!-- QR Verification on Right -->
+  <rect x="975" y="76" width="66" height="66" rx="6" fill="#ffffff" stroke="#fbbf24" stroke-width="2"/>
+  <rect x="983" y="84" width="16" height="16" fill="#0f172a"/>
+  <rect x="1017" y="84" width="16" height="16" fill="#0f172a"/>
+  <rect x="983" y="118" width="16" height="16" fill="#0f172a"/>
+  <rect x="1003" y="100" width="12" height="12" fill="#0f766e"/>
+  <rect x="1019" y="118" width="14" height="14" fill="#0f172a"/>
+  <text x="1008" y="156" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#ccfbf1" text-anchor="middle">UNI-VERIFY</text>
+
+  <!-- Candidate Academic Profile Box -->
+  <rect x="56" y="186" width="830" height="156" rx="8" fill="#f0fdfa" stroke="#99f6e4" stroke-width="1.5"/>
+
+  <!-- Left Column Details -->
+  <text x="76" y="214" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">CANDIDATE NAME:</text>
+  <text x="225" y="214" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#0f172a">ZOYA TARIQ</text>
+
+  <text x="76" y="242" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">PARENTAGE / GUARDIAN:</text>
+  <text x="225" y="242" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">TARIQ AHMAD KHAN</text>
+
+  <text x="76" y="270" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">DEGREE / SEMESTER:</text>
+  <text x="225" y="270" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f766e">UG NEP — 3rd Semester (Batch 2025-29)</text>
+
+  <text x="76" y="298" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">MAJOR DEPARTMENT:</text>
+  <text x="225" y="298" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f172a">Department of Computer Science &amp; IT</text>
+
+  <text x="76" y="326" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">EXAMINATION CENTER:</text>
+  <text x="225" y="326" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f766e">ACADEMIC BLOCK-II • HALL 204 (MORNING SHIFT)</text>
+
+  <!-- Divider Line -->
+  <line x1="500" y1="198" x2="500" y2="330" stroke="#99f6e4" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- Right Column Details -->
+  <text x="520" y="214" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">UNIVERSITY ROLL NO:</text>
+  <rect x="665" y="198" width="135" height="24" rx="4" fill="#ccfbf1" stroke="#5eead4" stroke-width="1"/>
+  <text x="732" y="215" font-family="Courier New, monospace" font-size="15" font-weight="bold" fill="#115e59" text-anchor="middle">250310489</text>
+
+  <text x="520" y="242" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">REGISTRATION NO:</text>
+  <text x="665" y="242" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#0f172a">UNI-REG-2025-7741</text>
+
+  <text x="520" y="270" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">DATE OF BIRTH:</text>
+  <text x="665" y="270" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#1e293b">22-11-2006</text>
+
+  <text x="520" y="298" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">NEP VERIFICATION:</text>
+  <rect x="665" y="284" width="150" height="20" rx="10" fill="#dcfce7"/>
+  <text x="740" y="298" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">APPROVED BY HOD</text>
+
+  <text x="520" y="326" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#475569">TOTAL NEP CREDITS:</text>
+  <text x="665" y="326" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#b45309">20 CREDITS (6 PAPERS)</text>
+
+  <!-- Candidate Photo Box -->
+  <rect x="904" y="186" width="138" height="156" rx="8" fill="#f8fafc" stroke="#0f766e" stroke-width="2"/>
+  <circle cx="973" cy="242" r="28" fill="#cbd5e1"/>
+  <path d="M933,312 C933,280 1013,280 1013,312" fill="#94a3b8"/>
+  <rect x="912" y="318" width="122" height="18" rx="3" fill="#ccfbf1"/>
+  <text x="973" y="330" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#115e59" text-anchor="middle">CANDIDATE PHOTO</text>
+
+  <!-- NEP-2020 Course & Examination Schedule Header -->
+  <rect x="56" y="356" width="986" height="28" rx="5" fill="#f0fdfa" stroke="#5eead4" stroke-width="1"/>
+  <text x="72" y="375" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#115e59" letter-spacing="0.8">🎓 NEP-2020 REGISTERED COURSES &amp; SEMESTER EXAMINATION SCHEDULE</text>
+  <text x="1026" y="375" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#475569" text-anchor="end">Shift: Morning (10:30 AM)</text>
+
+  <!-- Table Header -->
+  <rect x="56" y="390" width="986" height="32" fill="#115e59"/>
+  <text x="115" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">PAPER CODE</text>
+  <text x="265" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">NEP COURSE CATEGORY</text>
+  <text x="505" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">COURSE / PAPER TITLE</text>
+  <text x="695" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">EXAM DATE</text>
+  <text x="835" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">SHIFT / TIMING</text>
+  <text x="975" y="410" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">INVIGILATOR</text>
+
+  <!-- NEP-2020 6 Rows -->
+  <g font-family="Arial, sans-serif" font-size="12" fill="#1e293b">
+    <!-- Row 1: MAJOR -->
+    <rect x="56" y="422" width="986" height="30" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="115" y="441" text-anchor="middle" font-weight="bold" fill="#0f766e">CSC-MAJ-301</text>
+    <rect x="195" y="427" width="140" height="20" rx="4" fill="#dbeafe"/>
+    <text x="265" y="441" text-anchor="middle" font-size="10" font-weight="bold" fill="#1e3a8a">MAJOR / CORE (4 CR)</text>
+    <text x="360" y="441" font-weight="bold">Data Structures &amp; Algorithms</text>
+    <text x="695" y="441" text-anchor="middle" font-weight="bold">12/05/2027</text>
+    <text x="835" y="441" text-anchor="middle">10:30 AM – 01:30 PM</text>
+    <text x="975" y="441" text-anchor="middle" fill="#94a3b8">____________</text>
+
+    <!-- Row 2: MINOR -->
+    <rect x="56" y="452" width="986" height="30" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="115" y="471" text-anchor="middle" font-weight="bold" fill="#0f766e">MAT-MIN-302</text>
+    <rect x="195" y="457" width="140" height="20" rx="4" fill="#f3e8ff"/>
+    <text x="265" y="471" text-anchor="middle" font-size="10" font-weight="bold" fill="#6b21a8">MINOR SUBJECT (4 CR)</text>
+    <text x="360" y="471" font-weight="bold">Discrete Mathematics &amp; Graph Theory</text>
+    <text x="695" y="471" text-anchor="middle" font-weight="bold">15/05/2027</text>
+    <text x="835" y="471" text-anchor="middle">10:30 AM – 01:30 PM</text>
+    <text x="975" y="471" text-anchor="middle" fill="#94a3b8">____________</text>
+
+    <!-- Row 3: MULTIDISCIPLINARY -->
+    <rect x="56" y="482" width="986" height="30" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="115" y="501" text-anchor="middle" font-weight="bold" fill="#0f766e">ECO-MDC-303</text>
+    <rect x="195" y="487" width="140" height="20" rx="4" fill="#fef3c7"/>
+    <text x="265" y="501" text-anchor="middle" font-size="10" font-weight="bold" fill="#b45309">MULTIDISCIPLINARY (3 CR)</text>
+    <text x="360" y="501" font-weight="bold">Digital Economy &amp; Public Policy</text>
+    <text x="695" y="501" text-anchor="middle" font-weight="bold">18/05/2027</text>
+    <text x="835" y="501" text-anchor="middle">10:30 AM – 01:00 PM</text>
+    <text x="975" y="501" text-anchor="middle" fill="#94a3b8">____________</text>
+
+    <!-- Row 4: AEC -->
+    <rect x="56" y="512" width="986" height="30" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="115" y="531" text-anchor="middle" font-weight="bold" fill="#0f766e">ENG-AEC-304</text>
+    <rect x="195" y="517" width="140" height="20" rx="4" fill="#dcfce7"/>
+    <text x="265" y="531" text-anchor="middle" font-size="10" font-weight="bold" fill="#15803d">ABILITY ENHANCE (AEC)</text>
+    <text x="360" y="531" font-weight="bold">Academic Writing &amp; Communication Skills</text>
+    <text x="695" y="531" text-anchor="middle" font-weight="bold">21/05/2027</text>
+    <text x="835" y="531" text-anchor="middle">10:30 AM – 12:30 PM</text>
+    <text x="975" y="531" text-anchor="middle" fill="#94a3b8">____________</text>
+
+    <!-- Row 5: SEC -->
+    <rect x="56" y="542" width="986" height="30" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="115" y="561" text-anchor="middle" font-weight="bold" fill="#0f766e">CSC-SEC-305</text>
+    <rect x="195" y="547" width="140" height="20" rx="4" fill="#e0e7ff"/>
+    <text x="265" y="561" text-anchor="middle" font-size="10" font-weight="bold" fill="#3730a3">SKILL ENHANCE (SEC)</text>
+    <text x="360" y="561" font-weight="bold">Full-Stack Web Development Lab</text>
+    <text x="695" y="561" text-anchor="middle" font-weight="bold">24/05/2027</text>
+    <text x="835" y="561" text-anchor="middle">10:30 AM – 12:30 PM</text>
+    <text x="975" y="561" text-anchor="middle" fill="#94a3b8">____________</text>
+
+    <!-- Row 6: VAC -->
+    <rect x="56" y="572" width="986" height="30" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="115" y="591" text-anchor="middle" font-weight="bold" fill="#0f766e">ENV-VAC-306</text>
+    <rect x="195" y="577" width="140" height="20" rx="4" fill="#ffe4e6"/>
+    <text x="265" y="591" text-anchor="middle" font-size="10" font-weight="bold" fill="#be123c">VALUE ADDED (VAC)</text>
+    <text x="360" y="591" font-weight="bold">Environmental Science &amp; Sustainability</text>
+    <text x="695" y="591" text-anchor="middle" font-weight="bold">27/05/2027</text>
+    <text x="835" y="591" text-anchor="middle">10:30 AM – 12:30 PM</text>
+    <text x="975" y="591" text-anchor="middle" fill="#94a3b8">____________</text>
+  </g>
+
+  <!-- University Examination Directives -->
+  <rect x="56" y="616" width="986" height="68" rx="6" fill="#f0fdfa" stroke="#99f6e4" stroke-width="1.5"/>
+  <text x="72" y="635" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#115e59">UNIVERSITY / COLLEGE EXAMINATION DIRECTIVES (NEP-2020):</text>
+  <text x="72" y="652" font-family="Arial, sans-serif" font-size="11" fill="#134e4a">1. Candidate must produce this Hall Ticket along with College Identity Card at the examination center for every paper.</text>
+  <text x="72" y="669" font-family="Arial, sans-serif" font-size="11" fill="#134e4a">2. Verify that your NEP-2020 Major, Minor, MDC, AEC, SEC, and VAC papers listed above match your approved semester registration.</text>
+
+  <!-- 4 College Signature Blocks -->
+  <line x1="70" y1="748" x2="235" y2="748" stroke="#334155" stroke-width="1.5"/>
+  <text x="152" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#334155" text-anchor="middle">Candidate Signature</text>
+
+  <line x1="330" y1="748" x2="495" y2="748" stroke="#334155" stroke-width="1.5"/>
+  <text x="412" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#334155" text-anchor="middle">Head of Department (HOD)</text>
+
+  <line x1="590" y1="748" x2="765" y2="748" stroke="#334155" stroke-width="1.5"/>
+  <text x="677" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#334155" text-anchor="middle">Coordinator Examinations</text>
+
+  <!-- Principal Digital Sign & Line -->
+  <path d="M865,735 Q895,705 920,730 T975,718" fill="none" stroke="#0f766e" stroke-width="2.5"/>
+  <line x1="840" y1="748" x2="1025" y2="748" stroke="#0f172a" stroke-width="1.5"/>
+  <text x="932" y="766" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Principal / Controller Seal</text>
+</svg>

@@ -1,0 +1,16 @@
+{
+  "name": "school-portal-unified-access",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "mkdir -p dist && cp -f *.html *.js *.css dist/",
+    "start": "node server.js",
+    "lint": "node --check server.js && node --check script.js && node --check student.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.32.0",
+    "express": "^4.21.2"
+  }
+}

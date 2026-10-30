@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="student.css" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -618,7 +619,65 @@
             
             <div id="student-result-section" class="student-view-section card" style="display: none; padding: 25px; border-radius:16px; background:white; box-shadow:0 4px 15px rgba(0,0,0,0.06); margin-bottom:20px;">
                 <button onclick="openStudentView('student-main-grid')" class="mb-4 flex items-center gap-2 text-slate-600 font-semibold"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
-                <h3 class="text-xl font-bold text-[#1E3A8A] mb-4">My Results</h3>
+                <h3 class="text-xl font-bold text-[#1E3A8A] mb-4">My Results &amp; Academic Performance Trends</h3>
+                <div id="stu-result-trend-box" class="mb-6">
+                    <!-- Academic Performance Trends Line Chart Card (Inside Result Section) -->
+                    <div id="stu-performance-trend-card" class="card" style="margin-bottom: 24px; border-radius: 16px; background: #ffffff; padding: 22px 24px; box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06); border: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span style="width: 32px; height: 32px; border-radius: 9px; background: #eff6ff; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;">
+                                        <i class="fas fa-chart-line"></i>
+                                    </span>
+                                    <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a; font-family: 'Inter', sans-serif; letter-spacing: -0.01em;">Academic Performance Trends</h3>
+                                    <span id="stu-trend-source-badge" style="font-size: 11px; font-weight: 600; color: #475569; padding-left: 4px;">&bull; Loading trajectory...</span>
+                                </div>
+                                <p style="margin: 4px 0 0 40px; font-size: 12px; color: #64748b;">Visualize your term-over-term percentage progression, subject velocity, and target benchmark.</p>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <select id="stu-trend-subject-filter" onchange="window.updateStudentTrendChart && window.updateStudentTrendChart()" aria-label="Filter performance trend by subject" style="padding: 7px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #f8fafc; color: #1e293b; font-size: 12px; font-weight: 600; outline: none; cursor: pointer;">
+                                    <option value="__overall__">Overall Term Average (%)</option>
+                                    <option value="__all_subjects__">Compare All Subjects</option>
+                                </select>
+                                <button type="button" id="stu-trend-sample-toggle" onclick="window.toggleStudentTrendSampleMode && window.toggleStudentTrendSampleMode()" style="display: none; padding: 7px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e3a8a; font-size: 12px; font-weight: 700; cursor: pointer; align-items: center; gap: 6px;">
+                                    <i class="fas fa-eye"></i> <span id="stu-trend-sample-toggle-label">Sample Trajectory</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- KPI Summary Strip -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 18px;">
+                            <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Latest Term Score</div>
+                                <div id="stu-trend-kpi-latest" style="font-size: 22px; font-weight: 800; color: #0f172a; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                                <div id="stu-trend-kpi-latest-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">Awaiting term data</div>
+                            </div>
+                            <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Net Growth Trend</div>
+                                <div id="stu-trend-kpi-growth" style="font-size: 22px; font-weight: 800; color: #10b981; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                                <div id="stu-trend-kpi-growth-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">First to latest term</div>
+                            </div>
+                            <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Highest Term Peak</div>
+                                <div id="stu-trend-kpi-peak" style="font-size: 22px; font-weight: 800; color: #1e3a8a; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                                <div id="stu-trend-kpi-peak-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">Best recorded term</div>
+                            </div>
+                            <div style="padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Cumulative Average</div>
+                                <div id="stu-trend-kpi-avg" style="font-size: 22px; font-weight: 800; color: #0f172a; margin-top: 4px; font-variant-numeric: tabular-nums;">—</div>
+                                <div id="stu-trend-kpi-avg-sub" style="font-size: 11px; color: #64748b; margin-top: 2px;">Across evaluated terms</div>
+                            </div>
+                        </div>
+
+                        <!-- Line Chart Canvas Container -->
+                        <div style="position: relative; height: 270px; width: 100%; background: #ffffff; border-radius: 12px; padding: 6px 4px;">
+                            <canvas id="stu-performance-trend-chart"></canvas>
+                        </div>
+
+                        <!-- Term-by-Term Snapshot Footer -->
+                        <div id="stu-trend-term-pills" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0;"></div>
+                    </div>
+                </div>
                 <div id="stu-result-container" class="grid gap-4"></div>
             </div>
             
